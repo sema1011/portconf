@@ -1793,11 +1793,11 @@ ${contrast}Common${restore}
 	-b,  --backup:               Create backup for current /etc/portage state.
 	-r,  --restore:              Rolling up /etc/portage to one of available states.
 	-s,  --sort:                 Sort entries alphabetically, --use-sort, --keyword-uniq.
-	-y,  --yes:                  Auto answer (Yes).
-	-p,  --pretend:              Check only.
-	--no-backup:               Skip backup before operations.
-	--no-diff:                 Skip diff prompts, apply changes directly.
-	-h,  -h, -?, h, --help:      This help.
+ 	-y,  --yes:                  Auto answer (Yes).
+ 	-p,  --pretend:              Check only.
+ 	--no-backup:                 Skip backup before operations.
+ 	--no-diff:                   Skip diff prompts, apply changes directly.
+ 	-h,  -h, -?, h, --help:      This help.
 ${contrast}\${USE}${restore}
 	-us, --use-sort:             Sort useflags. Remove doubles and preserve only last defined state (on/off).
 	-ui, --use-invalid:          Delete invalid or twice global-defined useflags.
