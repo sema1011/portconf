@@ -1237,54 +1237,55 @@ backup_files(){
 }
 ############################################################################
 ################ package.* files 2 dirs ####################################
-f_to_d(){
+convert_package_files(){
+	local direction="${1:-f2d}"
+	local package target
 	while IFS= read -r package;do
 		if [[ -f "${package}" ]];then
-			echo -e "${underline}Processing${restore}: ${contrast}${package##*/}${restore}"
-			tmp_file="${TMPDIR_PORTCONF}/tmp_file"
-			mv "${package}" "${tmp_file}" 2>/dev/null
-			sed -e 's|^#.*||g' -i "${tmp_file}"
-			dir="${PORT_ETC}/${package##*/}"
-			mkdir "${dir}"
-			while IFS= read -r line;do
-			set -f
-				atom="$(awk '{print $1}' <<< "${line}")"
-				category="$(awk '{print $1}' <<< "$(qatom "${atom}")")"
-				if [[ "${category}" != "(null)" ]];then
-					category="$(tr -d "<>=~" <<< "${category}" )"
-					[[ "${category}" == "*" ]] && category="all_categories"
-					echo "${line}" >> "${dir}/${category}"
-				fi
-			done < "${tmp_file}"
-			set +f
-			rm "${tmp_file}" 2>/dev/null
-		elif [[ -d "${package}" ]];then
-			echo -e "${underline}Skipping ${red}directory${restore}: ${contrast}${package##*/}${restore}"
-			eend 0 2>/dev/null
-		fi
-	done <<< "$(for p in "${PORT_ETC}"/package*; do [[ "${p}" != *'~' ]] && printf '%s\n' "$p"; done 2>/dev/null)"
-}
-############################################################################
-################ package.* dirs 2 files ####################################
-d_to_f(){
-	while IFS= read -r package;do
-		if [[ -d "${package}" ]];then
-			echo -e "${underline}Processing${restore}: ${contrast}${package##*/}${restore}"
-			tmp_file="${TMPDIR_PORTCONF}/tmp_file"
-			file="${PORT_ETC}/${package##*/}"
-			touch "${file}"
-			for subfile in $(find "${package}" -type f \! -name '*~' \! -name '*.bak' | sort);do
+			if [[ "${direction}" == "f2d" ]];then
+				echo -e "${underline}Processing${restore}: ${contrast}${package##*/}${restore}"
+				local tmp_file="${TMPDIR_PORTCONF}/tmp_file"
+				mv "${package}" "${tmp_file}" 2>/dev/null
+				sed -e 's|^#.*||g' -i "${tmp_file}"
+				local dir="${PORT_ETC}/${package##*/}"
+				mkdir "${dir}"
 				while IFS= read -r line;do
-					echo "${line}" >> "${tmp_file}"
-				done < "${subfile}"
-			done
-			rm -rf "${package}" 2>/dev/null
-			mv "${tmp_file}" "${package}" 2>/dev/null
-			chmod 0644 "${package}"
-			rm "${tmp_file}" 2>/dev/null
-		elif [[ -f "${package}" ]];then
-			echo -e "${underline}Skipping ${red}file${restore}: ${contrast}${package##*/}${restore}"
-			eend 0 2>/dev/null
+					set -f
+					local atom category
+					atom="$(awk '{print $1}' <<< "${line}")"
+					category="$(awk '{print $1}' <<< "$(qatom "${atom}")")"
+					if [[ "${category}" != "(null)" ]];then
+						category="$(tr -d "<>=~" <<< "${category}")"
+						[[ "${category}" == "*" ]] && category="all_categories"
+						echo "${line}" >> "${dir}/${category}"
+					fi
+				done < "${tmp_file}"
+				set +f
+				rm "${tmp_file}" 2>/dev/null
+			else
+				echo -e "${underline}Skipping ${red}file${restore}: ${contrast}${package##*/}${restore}"
+				eend 0 2>/dev/null
+			fi
+		elif [[ -d "${package}" ]];then
+			if [[ "${direction}" == "d2f" ]];then
+				echo -e "${underline}Processing${restore}: ${contrast}${package##*/}${restore}"
+				local tmp_file="${TMPDIR_PORTCONF}/tmp_file"
+				local file="${PORT_ETC}/${package##*/}"
+				touch "${file}"
+				: > "${tmp_file}"
+				for subfile in $(find "${package}" -type f \! -name '*~' \! -name '*.bak' | sort);do
+					while IFS= read -r line;do
+						echo "${line}" >> "${tmp_file}"
+					done < "${subfile}"
+				done
+				rm -rf "${package}" 2>/dev/null
+				mv "${tmp_file}" "${package}" 2>/dev/null
+				chmod 0644 "${package}"
+				rm "${tmp_file}" 2>/dev/null
+			else
+				echo -e "${underline}Skipping ${red}directory${restore}: ${contrast}${package##*/}${restore}"
+				eend 0 2>/dev/null
+			fi
 		fi
 	done <<< "$(for p in "${PORT_ETC}"/package*; do [[ "${p}" != *'~' ]] && printf '%s\n' "$p"; done 2>/dev/null)"
 }
@@ -2026,10 +2027,10 @@ for OPT in ${opts};do
 		[[ -n "${eix_cache}" ]] && rm -f "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
 	--files-2-dirs | -f2d )
 		[[ -z "${NO_BACKUP}" ]] && backup;
-		f_to_d;;
+		convert_package_files f2d;;
 	--dirs-2-files | -d2f )
 		[[ -z "${NO_BACKUP}" ]] && backup;
-		d_to_f;;
+		convert_package_files d2f;;
 	--all-profiles-use | -apu ) all_use_all_profiles;;
 	--profiles-use | -pu ) profile_use;;
 	--current-profile-use | -cpu ) current_profile;;
