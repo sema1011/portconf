@@ -150,7 +150,6 @@ eix_check(){
 		eix-update
 	else
 		echo -e "${green}app-portage/eix${restore} ${red}not installed!${restore}"
-		eend 1 2>/dev/null
 		exit 1
 	fi
 	rm_repo_fix
@@ -177,7 +176,6 @@ Create temporary cache?${restore} [${green}Yes${restore}/${red}No${restore}] ";
 		fi
 	else
 		echo -e "${green}app-portage/eix${restore} ${red}not installed!${restore}"
-		eend 1 2>/dev/null
 		exit 1
 	fi
 }
@@ -208,10 +206,8 @@ backup(){
 		else
 			tar -jcf "${name}" -C /etc/ portage
 		fi
-		eend $? 2>/dev/null
 	else
 		echo -e "/etc/portage backups: ${green}already up-to-date${restore}"
-		eend $? 2>/dev/null
 	fi
 }
 ############################################################################
@@ -234,10 +230,8 @@ world_backup(){
 		echo -e "world backup: ${green}creating${restore}..."
 		name="${world_dir}/world_$(date +%g.%m.%d-%H:%M).tar.bz2"
 		tar -jcf "${name}" -C ${WORLD%world} world
-		eend $? 2>/dev/null
 	else
 		echo -e "world backups: ${green}already up-to-date${restore}"
-		eend $? 2>/dev/null
 	fi
 }
 ############################################################################
@@ -253,7 +247,6 @@ restore(){
 		echo -e "Rolling back ${3} to the state ${green}${answer}${restore}"
 		[[ -n "${5}" ]] && rm -rf "${5}"
 		tar -xf "${1}/${2}_${answer}.tar.bz2" -C ${4} 2>/dev/null
-		eend $? 2>/dev/null
 		break
 	done
 }
@@ -355,7 +348,6 @@ remove_ask(){
 					continue;;
 			esac
 		done
-		eend $? 2>/dev/null
 	elif [[ -n "${yes}" && -z "${PRETEND}" ]];then
 		echo -e "${contrast}Removing${restore} ${green}${1}${restore}"
 		rm -rf "${1}" 2>/dev/null
@@ -379,8 +371,7 @@ sort_uniq_files(){
 
 		sed -e '/^$/d' -e 's/[ \t]*$//' -i ${tmp_sort}
 		sort -u "${tmp_sort}" 2>/dev/null
-		[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_sort}"
-		eend $? 2>/dev/null
+		[[-z "${NO_DIFF}"]] && diff_ask "${package}" "${tmp_sort}"
 	done
 }
 ############################################################################
@@ -392,7 +383,6 @@ file_or_dir(){
 	done
 	if [[ -z "${founded}" ]];then
 		echo -e "${underline}${2}${restore}${contrast}${PORT_ETC}/${1}${restore}: No such file or directory${restore}"
-		eend 1 2>/dev/null
 		return 1
 	fi
 	for target in ${founded};do
@@ -404,7 +394,6 @@ file_or_dir(){
 			else
 				echo -e "${underline}Empty file${restore} ${contrast}${file}${restore}"
 				remove_ask "${file}"
-				eend $? 2>/dev/null
 			fi
 		elif [[ -d "${target}" ]];then
 			for f in $(find ${target} -type f \! -name '*~' \! -name '*.bak');do
@@ -415,7 +404,6 @@ file_or_dir(){
 				else
 					echo -e "${underline}Empty file${restore} ${contrast}${file}${restore}"
 					remove_ask "${file}"
-					eend $? 2>/dev/null
 					continue
 				fi
 			done
@@ -429,8 +417,7 @@ rm_comments(){
 		tmp_file="$(mktemp)"
 		cp "${file}" "${tmp_file}"
 		sed -e "s|^#.*||g" -e '/^$/d' -i ${tmp_file}
-		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
-		eend $? 2>/dev/null
+		[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
 	}
 	file_or_dir "package.*" "Checking comments:" "no_newline" || return 1
 }
@@ -441,8 +428,7 @@ rm_all_comments(){
 		tmp_file="$(mktemp)"
 		cp "${file}" "${tmp_file}"
 		sed -e "s|#.*||g" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_file}
-		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
-		eend $? 2>/dev/null
+		[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
 	}
 	file_or_dir "package.*" "Checking comments:" "no_newline_inline"  || return 1
 }
@@ -476,8 +462,7 @@ sort_uses(){
 	sed -e 's/[ \t]*$//' -e '/^$/d' -e 's|  | |g' -e "s| - | |g" -i "${striped}" 2>/dev/null
 	sort -u "${striped}" 2>/dev/null
 	rm "${tmp_file}" 2>/dev/null
-	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
-	eend $? 2>/dev/null
+	[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${striped}"
 } 2>/dev/null
 ############################################################################
 ################ package.use ###############################################
@@ -564,8 +549,7 @@ sort_keys(){
 	cp "${striped}" "${tmp_file}"
 	stupid_keywords "${tmp_file}" "${striped}"
 	rm "${tmp_file}" 2>/dev/null
-	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
-	eend $? 2>/dev/null
+	[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${striped}"
 } #2>/dev/null
 ############################################################################
 ################ one_keyword ###############################################
@@ -589,8 +573,7 @@ sort_keywords(){
 		cp "${tmp_file}" "${striped}"
 		stupid_keywords "${striped}" "${tmp_file}"
 		rm "${striped}"
-		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
-		eend $? 2>/dev/null
+		[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
 	}
 	file_or_dir "package.keywords package.accept_keywords" "Sorting keywords in" "keys" || return 1
 }
@@ -657,7 +640,6 @@ not_if(){
 						echo -e "${red}Not installed${restore} ${green}${category}/${pn}${restore}"
 					fi
 					sed -e "s|.*\<${category}/${pn}\>.*||" -e '/^$/d' -i "${tmp_package}" 2>/dev/null
-					eend $? 2>/dev/null
 				fi
 			done <<< $(qatom "${atom}")
 		done <<< "${atoms}"
@@ -671,14 +653,12 @@ force_not_installed(){
 			cp "${package}" "${tmp_package}"
 			if ! grep -q "\.mask" <<< "${package}";then
 				not_if;
-				eend $? 2>/dev/null
 			fi
-			[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_package}"
+			[[-z "${NO_DIFF}"]] && diff_ask "${package}" "${tmp_package}"
 		else
 			pack="${package%/*}"
 			echo -e "${underline}Empty file${restore} ${contrast}${pack}${restore}"
 			remove_ask "${package}"
-			eend $? 2>/dev/null
 		fi
 	done
 
@@ -686,7 +666,6 @@ force_not_installed(){
 		if [[ ! -s "${x}" ]];then
 			echo -e "${underline}Empty file${restore} ${contrast}${x}${restore}"
 			remove_ask "${x}"
-			eend $? 2>/dev/null
 		fi
 	done
 }
@@ -708,7 +687,6 @@ package_env_conf(){
 			if ! grep -q "^${conf}$" <<< "${USED_ENV}";then
 				echo -e "Unused conf: ${red}${conf}${restore}"
 				remove_ask "${PORT_ETC}/env/${conf}"
-				eend $? 2>/dev/null
 			fi
 		done
 	}
@@ -736,8 +714,7 @@ package_env(){
 				fi
 			done
 		done < "${file}"
-		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
-		eend $? 2>/dev/null
+		[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
 	}
 	file_or_dir "package.env" "Checking defined configs in" "package_env_def" || return 1
 }
@@ -771,7 +748,6 @@ env_not_installed(){
 					if ! ls -d1 ${PKGDB}/${category}/${pn}-[0-9]* &>/dev/null;then
 						echo -e "${red}Not installed${restore} ${green}${category}/${pn}${restore}"
 						RM+="${PORT_ETC}/${x}/${file}%"
-						eend $? 2>/dev/null
 					fi
 				fi
 
@@ -779,7 +755,6 @@ env_not_installed(){
 					if ! ls -d1 ${PKGDB}/${category}/${pn}-${full_ver} &>/dev/null;then
 						echo -e "${red}Not installed${restore} ${green}${category}/${pn}-${full_ver}${restore}"
 						RM+="${PORT_ETC}/${x}/${file}%"
-						eend $? 2>/dev/null
 					fi
 				fi
 
@@ -787,7 +762,6 @@ env_not_installed(){
 					if [[ -z "$(cat ${PKGDB}/${category}/${pn}-[0-9]*/SLOT 2>/dev/null | grep ${slot})" ]];then
 						echo -e "${red}Not installed${restore} ${green}${category}/${pn}:${slot}${restore}"
 						RM+="${PORT_ETC}/${x}/${file}%"
-						eend $? 2>/dev/null
 					fi
 				fi
 			done <<< "${atom}"
@@ -803,7 +777,6 @@ env_not_installed(){
 		done
 	unset IFS
 	done
-	eend $? 2>/dev/null
 }
 ############################################################################
 ################ incorrect uses ############################################
@@ -838,7 +811,6 @@ invalid_uses(){
 					usefxd="$(sed -e 's| - | |g' -e 's/[ -]*$//' <<< ${usefxd})"
 					strfxd="${category}/${pn} ${usefxd}"
 					sed -e "s|^${category}/${pn}[[:space:]].*${trash#-}.*|$strfxd|" -i ${tmp_file} 2>/dev/null
-					eend $? 2>/dev/null
 				done <<< "${strings}"
 			}
 
@@ -851,7 +823,6 @@ invalid_uses(){
 					usefxd="$(sed -e 's| - | |g' -e 's/[ -]*$//' <<< ${usefxd})"
 					strfxd="${category}/${pn} ${usefxd}"
 					sed -e "s|^${category}/${pn}[[:space:]].*${use#-}.*|$strfxd|" -i ${tmp_file} 2>/dev/null
-					eend $? 2>/dev/null
 				done <<< "${strings}"
 			}
 
@@ -911,17 +882,14 @@ invalid_uses(){
 			if [[ -n "${atom}" ]] && [[ -z "${opt}" ]];then
 				echo -e "Removing atom: ${green}${atom}${restore}"
 				sed -e "s|^${atom} *$||" -e '/^$/d' -i "${tmp_file}" 2>/dev/null
-				eend $? 2>/dev/null
 			fi
 		done <<< "$([[ -n "${IGNORE}" ]] && grep -v "${IGNORE}" < "${file}" || cat "${file}")"
 		while read atom opt;do
 			if [[ -n "${atom}" ]] && [[ -z "${opt}" ]];then
 				echo -e "Removing atom: ${green}${atom}${restore}"
 				sed -e "s|^${atom} *$||" -e '/^$/d' -i "${tmp_file}" 2>/dev/null
-				eend $? 2>/dev/null
 			fi
 		done <<< "$([[ -n "${IGNORE}" ]] && grep -v "${IGNORE}" < "${tmp_file}" || cat "${tmp_file}")"
-		eend $? 2>/dev/null
 		unset FORMAT USEONLY
 	}
 	if [[ -f "${PORT_ETC}/package.use" ]];then
@@ -941,7 +909,7 @@ invalid_uses(){
 		check_uses;
 		tput el;
 		tput cnorm;
-		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
+		[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
 		[[ ! -s "${file}" ]] && remove_ask "${file}"
 	elif [[ -d "${PORT_ETC}/package.use" ]];then
 		for f in $(find ${PORT_ETC}/package.use/ -type f \! -name '*~' \! -name '*.bak');do
@@ -961,12 +929,11 @@ invalid_uses(){
 				chars="$(wc -m <<< "${count}")"
 				check_uses;
 				tput cnorm
-				[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
+				[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
 				[[ ! -s "${file}" ]] && remove_ask "${file}"
 			else
 				echo -e "${underline}Removing empty file${restore} ${contrast}${f}${restore}"
 				rm ${f} 2>/dev/null
-				eend $? 2>/dev/null
 				continue
 			fi
 		done
@@ -1012,7 +979,7 @@ invalid_uses_make(){
 			sed -e "s|${line%\\}|${fixed_line%\\}|" -i "${tmp_file}"
 		done
 	fi
-	[[ -z "${NO_DIFF}" ]] && diff_ask "${makefile}" "${tmp_file}"
+	[[-z "${NO_DIFF}"]] && diff_ask "${makefile}" "${tmp_file}"
 	set +f
 }
 ############################################################################
@@ -1031,9 +998,8 @@ not_found(){
 				echo -e "${red}Incorrect:${restore} ${line}"
 				line="${line//'*'/\*}"
 				[[ -n "${line}" ]] && sed -e "s|$line||" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_package} 2>/dev/null
-				eend $? 2>/dev/null
 			done <<< "${incorrect}"
-			[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_package}"
+			[[-z "${NO_DIFF}"]] && diff_ask "${package}" "${tmp_package}"
 		elif [[ -n "${incorrect}" && -d "${package}" ]];then
 			echo -e "${underline}Removing incorrect from${restore} ${contrast}${package}${restore}:"
 			IFS=$'\n'
@@ -1043,8 +1009,7 @@ not_found(){
 					cp "${file}" "${tmp_file}"
 					echo -e "${red}Incorrect:${restore} ${line}"
 					[[ -n "${line}" ]] && sed -e "s|${line//'*'/\*}||" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_file}
-					[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
-					eend $? 2>/dev/null
+					[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
 				done
 			done
 			unset IFS
@@ -1071,18 +1036,17 @@ not_found(){
 			tmp_file="$(mktemp)"
 			cp "${file}" "${tmp_file}"
 			[[ -n "${line}" ]] && sed -e "s|$(echo "$line")$||" -e 's|[ \t]| |' -e '/^[ \t]$/d' -e '/^$/d' -i "${tmp_file}"
-			[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
+			[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
 		elif [[ -n "${line}" && -d "${file}" ]];then
 			for package in $(grep -RH "${line//'*'/\*}" "${file}"/ | awk -F \: '{print $1}');do
 					tmp_package="$(mktemp)"
 					cp "${package}" "${tmp_package}"
 					echo -e "${red}Incorrect:${restore} ${line}"
 					[[ -n "${line}" ]] && sed -e "s|${line//'*'/\*}||" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_package}
-					[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_package}"
+					[[-z "${NO_DIFF}"]] && diff_ask "${package}" "${tmp_package}"
 					eend $? 2>/dev/null
 			done
 		fi
-		eend $? 2>/dev/null
 	done
 	unset IFS
 
@@ -1102,7 +1066,7 @@ not_found(){
 		while read line;do
 			sed -e "s|^$(printf ${line}).*$||;s|^${line//\*/\\*}.*$||" -e 's|[ \t]| |;/^[ \t]$/d;/^$/d' -i "${tmp_file}"
 		done <<< "${tlines}"
-		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
+		[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
 		set +f
 	}
 	if [[ -n "${invalid}" ]];then
@@ -1132,8 +1096,7 @@ use_makeconf(){
 			fi
 		fi
 	done <<< "${PROFILE}"
-	[[ -z "${NO_DIFF}" ]] && diff_ask "${makefile}" "${tmp_file}"
-	eend $? 2>/dev/null
+	[[-z "${NO_DIFF}"]] && diff_ask "${makefile}" "${tmp_file}"
 }
 ############################################################################
 ################ empty files ###############################################
@@ -1142,7 +1105,6 @@ empty_files(){
 	for target in $(find ${PORT_ETC} -type f);do
 		[[ ! -s "${target}" || -z "$(grep -v "^#" < "${target}")" ]] && remove_ask "${target}"
 	done
-	eend 0 2>/dev/null
 }
 ############################################################################
 ################ backup files ##############################################
@@ -1151,7 +1113,6 @@ backup_files(){
 	for target in $(find ${PORT_ETC} -type f \( -name "*~" -o  -name "*.bak" -o -name "*.old" \));do
 		remove_ask "${target}"
 	done
-	eend 0 2>/dev/null
 }
 ############################################################################
 ################ package.* files 2 dirs ####################################
@@ -1175,7 +1136,6 @@ f_to_d(){
 				fi
 			done < "${tmp_file}"
 			set +f
-			eend $? 2>/dev/null
 			rm "${tmp_file}" 2>/dev/null
 		elif [[ -d "${package}" ]];then
 			echo -e "${underline}Skipping ${red}directory${restore}: ${contrast}${package##*/}${restore}"
@@ -1200,7 +1160,6 @@ d_to_f(){
 			rm -rf "${package}" 2>/dev/null
 			mv "${tmp_file}" "${package}" 2>/dev/null
 			chmod 0644 "${package}"
-			eend $? 2>/dev/null
 			rm "${tmp_file}" 2>/dev/null
 		elif [[ -f "${package}" ]];then
 			echo -e "${underline}Skipping ${red}file${restore}: ${contrast}${package##*/}${restore}"
@@ -1339,7 +1298,7 @@ mask_trash(){
 			for trash_atom in ${incorrect};do
 				sed -e "s|^${trash_atom}.*||" -e '/^$/d' -e 's/[ \t]*$//' -i "${tmp_file}"
 			done
-			[[ -z "${NO_DIFF}" ]] && diff_ask "${target}" "${tmp_file}"
+			[[-z "${NO_DIFF}"]] && diff_ask "${target}" "${tmp_file}"
 		fi
 	done
 	unset TRASH OVERLAYS_LIST VERSIONONLY FORMAT MASKED UNMASKED versions oldest versions_diff versions_btwn
@@ -1366,8 +1325,7 @@ remove_trash(){
 			fi
 		done <<< "${lines}"
 	done
-	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
-	eend $? 2>/dev/null
+	[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
 }
 ############################################################################
 ################ stupid unmask #############################################
@@ -1391,8 +1349,7 @@ sort_uniq_mask_use(){
 
 			sort_passed_uses "${masked_uses}" | tr "[:space:]" $'\n' > ${tmp_sort}
 
-			[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_sort}"
-			eend $? 2>/dev/null
+			[[-z "${NO_DIFF}"]] && diff_ask "${package}" "${tmp_sort}"
 		done
 	fi
 }
@@ -1450,7 +1407,7 @@ etc_profile_use_mask() {
 			fi
 		fi
 	done < "${orig_file}"
-	[[ -z "${NO_DIFF}" ]] && diff_ask "${orig_file}" "${tmp_file}"
+	[[-z "${NO_DIFF}"]] && diff_ask "${orig_file}" "${tmp_file}"
 }
 
 check_use_masked() {
@@ -1550,9 +1507,8 @@ regen_world(){
 	done
 	cp "${WORLD}" "${tmp_world}"
 	cp "${ex_world}" "${WORLD}"
-	[[ -z "${NO_DIFF}" ]] && diff_ask "${WORLD}" "${tmp_world}"
+	[[-z "${NO_DIFF}"]] && diff_ask "${WORLD}" "${tmp_world}"
 	rm "${ex_world}"
-	eend $? 2>/dev/null
 	echo -e "\n${green}Result${restore}:"
 	cat "${WORLD}"
 }
@@ -1644,7 +1600,6 @@ overlays(){
 				Yes | YES | yes | Y | y | "" )
 					for symlink in $(awk '{print $2}' <<< "${bad_links%$'\n'}");do
 						rm -v "${symlink}"
-						eend $? 2>/dev/null
 					done
 					break;;
 				No | NO | no | N | n )
@@ -1745,7 +1700,6 @@ overlays(){
 		fi
 	done
 	echo "done"
-	eend 0 2>/dev/null
 }
 ############################################################################
 ################ help ######################################################
