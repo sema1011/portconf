@@ -1220,20 +1220,38 @@ use_makeconf(){
 	[[ "${changed}" -eq 0 ]] && rm -f "${tmp_file}"
 }
 ############################################################################
+################ find_and_remove ###########################################
+# Find files matching expression and prompt to remove each.
+# $1 = find expression (after -type f), $2 = optional check function name
+# If $2 is set, the check function receives the target path and returns 0 to confirm removal
+find_and_remove(){
+	local find_expr="${1:-}"
+	local check_fn="${2:-}"
+	while IFS= read -r -d '' target;do
+		if [[ -n "${check_fn}" ]];then
+			CHECK_TARGET="${target}"
+			${check_fn} && remove_ask "${target}"
+		else
+			remove_ask "${target}"
+		fi
+	done < <(find "${PORT_ETC}" -type f ${find_expr} -print0)
+}
+############################################################################
+################ _check_empty_file #########################################
+_check_empty_file(){
+	[[ ! -s "${CHECK_TARGET}" || -z "$(awk '!/^#/' < "${CHECK_TARGET}")" ]]
+}
+############################################################################
 ################ empty files ###############################################
 empty_files(){
 	echo -e "${underline}Looking empty files${restore}"
-	while IFS= read -r -d '' target;do
-		[[ ! -s "${target}" || -z "$(awk '!/^#/' < "${target}")" ]] && remove_ask "${target}"
-	done < <(find "${PORT_ETC}" -type f -print0)
+	find_and_remove "" "_check_empty_file"
 }
 ############################################################################
 ################ backup files ##############################################
 backup_files(){
 	echo -e "${underline}Looking backup files${restore}"
-	while IFS= read -r -d '' target;do
-		remove_ask "${target}"
-	done < <(find "${PORT_ETC}" -type f \( -name "*~" -o -name "*.bak" -o -name "*.old" \) -print0)
+	find_and_remove '\( -name "*~" -o -name "*.bak" -o -name "*.old" \)'
 }
 ############################################################################
 ################ package.* files 2 dirs ####################################
