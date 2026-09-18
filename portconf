@@ -1285,22 +1285,29 @@ convert_package_files(){
 	done <<< "$(for p in "${PORT_ETC}"/package*; do [[ "${p}" != *'~' ]] && printf '%s\n' "$p"; done 2>/dev/null)"
 }
 ############################################################################
-################ version diff ##############################################
-ver_diff(){
-	check="$(versionsort "${1}" "${2}" 2>/dev/null | tail -n1)"
-	[[ "${check}" == "${1}" && "${check}" != "${2}" ]] && echo 1 # ${1} > ${2}
-	[[ "${check}" == "${2}" && "${check}" != "${1}" ]] && echo 2 # ${2} > ${1}
-	[[ "${check}" == "${1}" && "${check}" == "${2}" ]] && echo 0 # ${1} = ${2}
-}
-############################################################################
-################ version between ###########################################
-ver_btwn(){
-	for between in ${3};do
-		if [[ "$(ver_diff "${1}" "${between}")" == "1" && "$(ver_diff "${2}" "${between}")" == "2" ]];then
-			echo "1" # we have one_or_more version between ${1} and ${2}
-			break
-		fi
-	done
+################ version_compare ###########################################
+# Compare versions: $1=ver_a $2=ver_b $3=mode (diff|btwn) $4=versions_list
+# diff: returns 0=equal, 1=a>b, 2=b>a
+# btwn: returns 1 if any version in $4 is between $1 and $2
+version_compare(){
+	local v1="${1}" v2="${2}" mode="${3:-diff}" list="${4:-}"
+	if [[ "${mode}" == "btwn" ]];then
+		for between in ${list};do
+			local check1 check2
+			check1="$(versionsort "${v1}" "${between}" 2>/dev/null | tail -n1)"
+			check2="$(versionsort "${v2}" "${between}" 2>/dev/null | tail -n1)"
+			if [[ "${check1}" == "${between}" && "${check2}" != "${between}" ]];then
+				echo "1"
+				break
+			fi
+		done
+	else
+		local check
+		check="$(versionsort "${v1}" "${v2}" 2>/dev/null | tail -n1)"
+		[[ "${check}" == "${v1}" && "${check}" != "${v2}" ]] && echo 1
+		[[ "${check}" == "${v2}" && "${check}" != "${v1}" ]] && echo 2
+		[[ "${check}" == "${v1}" && "${check}" == "${v2}" ]] && echo 0
+	fi
 }
 ############################################################################
 package_envs(){
@@ -1382,8 +1389,8 @@ mask_trash(){
 			fi
 
 			if [[ -n "${mver}" && -n "${uver}" ]];then
-				versions_diff="$(ver_diff "${mver}" "${uver}")"
-				versions_btwn="$(ver_btwn "${uver}" "${mver}" "${versions}")"
+				versions_diff="$(version_compare "${mver}" "${uver}")"
+				versions_btwn="$(version_compare "${uver}" "${mver}" "btwn" "${versions}")"
 			fi
 
 			if [[ "${msw}" != "(null)" ]];then
@@ -1405,12 +1412,12 @@ mask_trash(){
 			else
 				if [[ "${mslot}" == "${uslot}" ]];then
 					if [[ "${usw}" == ">=" || "${usw}" == ">" ]];then
-						if [[ "$(ver_diff "${uver}" "${oldest}")" != "1" ]];then
+						if [[ "$(version_compare "${uver}" "${oldest}")" != "1" ]];then
 							slot_output
 						fi
-					elif [[ "${usw}" == "<"  && "$(ver_diff "${uver}" "${oldest}")" == "1" ]];then
+					elif [[ "${usw}" == "<"  && "$(version_compare "${uver}" "${oldest}")" == "1" ]];then
 						slot_output
-					elif [[ "${usw}" == "<=" && "$(ver_diff "${uver}" "${oldest}")" != "1" ]];then
+					elif [[ "${usw}" == "<=" && "$(version_compare "${uver}" "${oldest}")" != "1" ]];then
 						slot_output
 					elif [[ "${usw}" == "(null)" ]];then
 						slot_output
