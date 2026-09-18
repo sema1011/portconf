@@ -1733,7 +1733,7 @@ fix_deps(){
 	while IFS= read -r -d '' dep_path;do
 		repo_path="$(sed "s|${DEP_PATH}||" <<< "${dep_path}")"
 		dep_file="${dep_path}.sqlite"
-		if [[ -n "${repo_path}" ]];then
+		if [[ -n "${repo_path}" ]] && ! grep -qF "${repo_path}" <<< "${TRASH}";then
 			if [[ ! -d "${repo_path}" ]];then
 				TRASH+="${dep_path} "
 				[[ -f "${dep_file}" ]] && TRASH+="${dep_file} "
@@ -1750,14 +1750,10 @@ fix_deps(){
 				elif [[ -n "${file_stamp}" && -n "${path_stamp}" ]] && (( file_stamp < path_stamp ));then
 					TRASH+="${dep_file} "
 				fi
+			fi
 		fi
-	fi
 	done < <(find "${DEP_PATH}" -type d -print0 2>/dev/null)
-	if [[ -n "${TRASH}" ]];then
-		echo "${TRASH}"
-	else
-		stop="true"
-	fi
+	echo "${TRASH}"
 	}
 	choose_target_overlays
 	ask_overlays
@@ -1766,16 +1762,11 @@ fix_deps(){
 	done
 	echo -e "\n${TRASH_REPO}"
 	echo "dep-cache:"
-	while [[ -z "${stop}" ]];do
-		trash="$(fix_deps)"
-		if [[ -n "${trash}" ]];then
-			echo -e "$(tr ' ' $'\n' <<< "${trash% }" | sed "s|^|removing:\\${green}|;s|$|\\${restore}|")"
-			[[ -z "${trash// /}" ]] && continue
-			rm -rf "${trash}" 2>/dev/null || { echo "failed"; exit 1; }
-		else
-			break
-		fi
-	done
+	trash="$(fix_deps)"
+	if [[ -n "${trash}" ]];then
+		echo -e "$(tr ' ' $'\n' <<< "${trash% }" | sed "s|^|removing:\\${green}|;s|$|\\${restore}|")"
+		rm -rf "${trash}" 2>/dev/null || { echo "failed"; exit 1; }
+	fi
 	echo "done"
 }
 ############################################################################
