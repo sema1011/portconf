@@ -249,7 +249,10 @@ backup(){
 ################ world_backup ##############################################
 world_backup(){
 	world_dir="${BRDIR}/world"
-	[[ -d "${world_dir}" ]] || mkdir -p "${world_dir}"
+	[[ -d "${BRDIR}" ]] || mkdir -p "${BRDIR}" 2>/dev/null
+	[[ -d "${world_dir}" ]] || mkdir -p "${world_dir}" 2>/dev/null
+	[[ -d "${world_dir}" ]] || { echo -e "${red}Cannot create ${world_dir}${restore}"; return 1; }
+	[[ -f "${WORLD}" ]] || { echo -e "${red}World file ${WORLD} not found${restore}"; return 1; }
 	tarballs="$(ls -1 --color=never ${world_dir})"
 	oldest="$(head -n1 <<< "${tarballs}")"
 	count="$( wc -l <<< "${tarballs}")"
@@ -271,7 +274,10 @@ world_backup(){
 ############################################################################
 ################ restore ###################################################
 restore(){
-	tarballs="$(ls -1 --color=never "${1}"/*.bz2)"
+	[[ -d "${1}" ]] || { echo -e "${red}Directory ${1} not found${restore}"; return 1; }
+	local tarballs
+	tarballs="$(ls -1 --color=never "${1}"/*.bz2 2>/dev/null)"
+	[[ -n "${tarballs}" ]] || { echo -e "${red}No backups in ${1}${restore}"; return 1; }
 	tarballs="${tarballs//${1}\/}"
 	tarballs="${tarballs//.tar.bz2/}"
 	tarballs="${tarballs//${2}_/}"
