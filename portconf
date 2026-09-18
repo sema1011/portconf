@@ -1593,19 +1593,11 @@ ask_world(){
 				Yes | YES | yes | Y | y | "" )
 					add_in_world;
 					while [[ -z "${enough}" && "$(echo "${pretend// /$'\n'}" | sed '/^$/d' | wc -l)" != "0" ]];do
-						echo -ne "${contrast}More?${restore} [${green}Yes${restore}/${red}No${restore}] "
-						while IFS= read -r y;do
-							case ${y} in
-								Yes | YES | yes | Y | y | "" )
-									add_in_world;
-									break;;
-								No | NO | no | N | n )
-									enough="1"
-									break;;
-								* ) echo -ne "Sorry, response '${y}' not understood. [${green}Yes${restore}/${red}No${restore}] "
-									continue;;
-							esac
-						done
+						if prompt_yesno "${contrast}More?${restore} ";then
+							add_in_world
+						else
+							enough="1"
+						fi
 					done
 					break;;
 				No | NO | no | N | n )
@@ -1850,19 +1842,11 @@ ask_overlays(){
 				Yes | YES | yes | Y | y | "" )
 					UNUSED="$(grep -v "^$(choose_target_overlays)$" <<< "${UNUSED}")"
 					while [[ -z "${enough}" && "$(echo "${UNUSED// /$'\n'}" | sed '/^$/d' | wc -l)" != "0" ]];do
-						echo -ne "${contrast}More?${restore} [${green}Yes${restore}/${red}No${restore}] "
-						while IFS= read -r y;do
-							case ${y} in
-								Yes | YES | yes | Y | y | "" )
-									UNUSED="$(grep -v "^$(choose_target_overlays)$" <<< "${UNUSED}")"
-									break;;
-								No | NO | no | N | n )
-									enough="1"
-									break;;
-								* ) echo -ne "Sorry, response '${y}' not understood. [${green}Yes${restore}/${red}No${restore}] "
-									continue;;
-							esac
-						done
+						if prompt_yesno "${contrast}More?${restore} ";then
+							UNUSED="$(grep -v "^$(choose_target_overlays)$" <<< "${UNUSED}")"
+						else
+							enough="1"
+						fi
 					done
 					break;;
 				No | NO | no | N | n )
