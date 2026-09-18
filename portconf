@@ -27,6 +27,12 @@ ARCH="$(eix --print DEFAULT_ARCH)"
 [[ -f "/etc/portconf.conf" ]] && . /etc/portconf.conf
 COUNT="${COUNT:-10}"
 ############################################################################
+################ terminal ##################################################
+[[ -z "${TERM}" ]] && TERM="xterm"
+COLS="$(tput cols 2>/dev/null || echo 80)"
+COLS="${COLS:-80}"
+[[ "${COLS}" -lt 20 ]] 2>/dev/null && COLS=80
+############################################################################
 ################ ignore ####################################################
 [[ -n "${IGNORE_CATEGORY}" ]] && IGNORE_CATEGORY="$(sed -e '/^$/d' -e 's/$/\/.*/g' <<< "$(tr "[:space:]" $'\n' <<< "${IGNORE_CATEGORY}")")"
 [[ -n "${IGNORE_PN}" ]] && IGNORE_PN="$(sed -e '/^$/d' -e 's/^/.*\//g' <<< "$(tr "[:space:]" $'\n' <<< "${IGNORE_PN}")")"
@@ -72,11 +78,12 @@ profile_uses="$(sort_passed_uses "${pre_profile}")"
 PROFILE="$(tr "[:space:]" $'\n' <<< "${profile_uses}")"
 ############################################################################
 ################ all_use_all_profiles ######################################
-all_use_all_profiles(){
+	all_use_all_profiles(){
 	for target in $(eselect --brief profile list);do
 		profile_uses="$(profile "${PORTDIR}/profiles/${target}")"
 		USEs="$(sort_passed_uses "${profile_uses}")"
-		echo -e "\n${green}${target}${restore}: "${USEs} | fold -s -w "$(tput cols)"
+		# shellcheck disable=SC1012
+		echo -e "\n${green}${target}${restore}: "${USEs} | fold -s -w "${COLS}"
 		unset USEs
 	done
 }
@@ -87,7 +94,8 @@ profile_use(){
 	select target in $(eselect --brief profile list);do
 		profile_uses="$(profile "${PORTDIR}/profiles/${target}")"
 		USEs="$(sort_passed_uses "${profile_uses}")"
-		echo -e "\n${green}${target}${restore}: "${USEs} | fold -s -w "$(tput cols)"
+		# shellcheck disable=SC1012
+		echo -e "\n${green}${target}${restore}: "${USEs} | fold -s -w "${COLS}"
 		unset USEs
 		break
 	done
@@ -102,7 +110,7 @@ current_profile(){
 	fi
 	profile_uses="$(profile "${PORTDIR}/profiles/${target}")"
 	USEs="$(sort_passed_uses "${PROFILE}")"
-	echo -e "${green}${target}${restore}: "${USEs} | fold -s -w "$(tput cols)"
+	echo -e "${green}${target}${restore}: "${USEs} | fold -s -w "${COLS}"
 	unset USEs
 }
 ############################################################################
