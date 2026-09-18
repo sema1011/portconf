@@ -1678,19 +1678,21 @@ overlays(){
 
 	######## parent_repo for installed packages
 	echo "Checking installed packages..."
-	tput sc
-	tput civis
+	# Progress bar only works with working tput
+	_PROGRESS=0
+	tput sc &>/dev/null && _PROGRESS=1
+	if [[ "${_PROGRESS}" -eq 1 ]];then
+		tput civis
+	fi
 	for i in ${PKGDB}/*/*/repository;do
-		tput el
-		tput el1
+		[[ "${_PROGRESS}" -eq 1 ]] && { tput el; tput el1; }
 		output="${i#${PKGDB}/}"
 		output="${output%/repository}"
 		echo -n "${output}"
-		tput rc
+		[[ "${_PROGRESS}" -eq 1 ]] && tput rc
 		used_repos+="$(grep -sv '^gentoo$' "${i}")"$'\n'
 	done
-	tput el
-	tput cnorm
+	[[ "${_PROGRESS}" -eq 1 ]] && { tput el; tput cnorm; }
 	used_repos="$(sort -u <<< "${used_repos%$'\n'}")"
 
 	for repo in ${used_repos};do
