@@ -114,7 +114,9 @@ PORTDIR="${PORTDIR:-/usr/portage}"
 ############################################################################
 ################ sed_escape ##################################################
 sed_escape(){
-	# Escape sed special characters: & \ / and regex metacharacters
+	# Escape sed BRE metacharacters: & \ / and regex metacharacters
+	# Note: * must be escaped as [*] because \* in BRE means "0+ previous"
+	# { } | are NOT BRE metacharacters (only with \ prefix in BRE)
 	local s="$1"
 	s="${s//\\/\\\\}"
 	s="${s//&/\\&}"
@@ -125,13 +127,10 @@ sed_escape(){
 	s="${s//\^/\\^}"
 	s="${s//\$/\\$}"
 	s="${s//\./\\.}"
-	s="${s//\*/\\*}"
+	s="${s//\*/[*]}"
 	s="${s//\?/\\?}"
 	s="${s//\(/\\(}"
 	s="${s//\)/\\)}"
-	s="${s//\|/\\|}"
-	s="${s//\{/\\{}"
-	s="${s//\}/\\}}"
 	echo "$s"
 }
 ############################################################################
@@ -1007,6 +1006,12 @@ hell_parser(){
 invalid_uses_make(){
 	set -f
 	echo -e "${underline}Checking use flags in${restore} ${contrast}${makefile}${restore}"
+	# Ensure eix cache exists for --print-all-useflags
+	if [[ -z "${eix_cache}" || ! -f "${eix_cache}" ]];then
+		eix_check
+	else
+		export EIX_CACHEFILE="${eix_cache}"
+	fi
 	tmp_file="${TMPDIR_PORTCONF}/tmp_file"
 	cp "${makefile}" "${tmp_file}"
 
@@ -1024,7 +1029,7 @@ invalid_uses_make(){
 
 	if [[ -n "${invalid_uses}" ]];then
 		for iuse in ${invalid_uses};do
-			line="$(grep -F -- "$(sed_escape "$iuse")" ${tmp_file} 2>/dev/null | head -n1)"
+			line="$(grep -F -- "${iuse}" ${tmp_file} 2>/dev/null | head -n1)"
 			fixed_line="$(sed "s|[- \t]$(sed_escape "${iuse}")||" <<< "${line}")"
 			sed -e "s|${line%\\}|${fixed_line%\\}|" -i "${tmp_file}"
 		done
