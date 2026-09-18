@@ -783,48 +783,32 @@ package_env_conf(){
 	[[ -d "${PORT_ETC}/env" ]] || return 0
 	all_confs="$(find "${PORT_ETC}/env/" -maxdepth 1 -type f)"
 	all_confs="${all_confs//${PORT_ETC////\/}\/env\//}"
-	check_env_conf(){
-		atoms="$(sed 's/^[ \t]*//;s/[ \t]*$//;/^#/d;/^$/d;' < "${file}" | awk '{print $1}')"
-		while IFS= read -r line;do
-			line="$(sed 's/^[ \t]*//;s/[ \t]*$//' <<< "${line%%#*}")"
-			for atom in ${atoms};do
-				USED_ENV+=" ${line#${atom} }"
-			done
-		done < "${file}"
-		USED_ENV="$(tr ' ' $'\n' <<< "${USED_ENV}")"
+	file_or_dir "package.env" "Checking unused configs in" "check_env_conf" || return 1
+}
+package_env_def(){
+	tmp_file="${TMPDIR_PORTCONF}/tmp_file"
+	cp "${file}" "${tmp_file}"
+	while IFS= read -r line;do
+		xline="$(sed 's/^[ \t]*//;s/[ \t]*$//' <<< "${line%%#*}")"
+		atom="${xline%% *}"
+		all_confs="${xline#${atom} }"
 		for conf in ${all_confs};do
-			if ! grep -q "^${conf}$" <<< "${USED_ENV}";then
-				echo -e "Unused conf: ${red}${conf}${restore}"
-				remove_ask "${PORT_ETC}/env/${conf}"
+			if [[ -f "${PORT_ETC}/env/${conf}" ]];then
+				IGNORE+=$'\n'"${conf}"
+			else
+				echo -e "Defined conf not exists: ${red}${conf}${restore}"
+				new_line=$(grep -v "^${conf}$" <<< "$(tr ' ' $'\n' <<< "${line}")" | tr $'\n' ' ')
+				new_line="$(sed 's/^[ \t]*//;s/[ \t]*$//' <<< "${new_line}")"
+				sed "s|$(sed_escape "${line}")|$(sed_escape "${new_line}")|" -i "${tmp_file}"
+				line="${new_line}"
 			fi
 		done
-	}
-	file_or_dir "package.env" "Checking unused configs in" "check_env_conf" || return 1
+	done < "${file}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 }
 ############################################################################
 ################ package.env ###############################################
 package_env(){
-	package_env_def(){
-		tmp_file="${TMPDIR_PORTCONF}/tmp_file"
-		cp "${file}" "${tmp_file}"
-		while IFS= read -r line;do
-			xline="$(sed 's/^[ \t]*//;s/[ \t]*$//' <<< "${line%%#*}")"
-			atom="${xline%% *}"
-			all_confs="${xline#${atom} }"
-			for conf in ${all_confs};do
-				if [[ -f "${PORT_ETC}/env/${conf}" ]];then
-					IGNORE+=$'\n'"${conf}"
-				else
-					echo -e "Defined conf not exists: ${red}${conf}${restore}"
-					new_line=$(grep -v "^${conf}$" <<< "$(tr ' ' $'\n' <<< "${line}")" | tr $'\n' ' ')
-					new_line="$(sed 's/^[ \t]*//;s/[ \t]*$//' <<< "${new_line}")"
-					sed "s|$(sed_escape "${line}")|$(sed_escape "${new_line}")|" -i "${tmp_file}"
-					line="${new_line}"
-				fi
-			done
-		done < "${file}"
-		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
-	}
 	file_or_dir "package.env" "Checking defined configs in" "package_env_def" || return 1
 }
 ############################################################################
@@ -1193,7 +1177,6 @@ not_found(){
 	else
 		invalid=$(emerge --version 2>&1 | sed -e '/--- Invalid atom in /!d' -e 's|--- Invalid atom in ||g;s|:||')
 	fi
-	broken_files="$(awk '{print $1}' <<< "${invalid}" | sort -u)"
 	invalid_lines(){
 		tmp_file="${TMPDIR_PORTCONF}/tmp_file"
 		cp "${file}" "${tmp_file}"
@@ -1205,6 +1188,7 @@ not_found(){
 		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 		set +f
 	}
+	broken_files="$(awk '{print $1}' <<< "${invalid}" | sort -u)"
 	if [[ -n "${invalid}" ]];then
 		for bad_file in ${broken_files};do
 			file_or_dir "${bad_file#${PORT_ETC}/}" "Founded invalid lines in" "invalid_lines"
@@ -1376,17 +1360,35 @@ package_envs(){
 ############################################################################
 ################ mask/unmask trash #########################################
 all_mask_trash(){
-	pre_mask_trash(){
-		masked="$(awk '!/^#/ {print $1}' ${file})"
-		MASKED+="$(package_envs "${masked}")"$'\n'
-	}
 	file_or_dir "package.mask" "Preparing atoms in" "pre_mask_trash" || return 1
-	pre_unmask_trash(){
-		unmasked="$(awk '!/^#/ {print $1}' ${file})"
-		UNMASKED+="$(package_envs "${unmasked}")"$'\n'
-	}
 	file_or_dir "package.unmask" "Preparing atoms in" "pre_unmask_trash" || return 1
 }
+pre_mask_trash(){
+	masked="$(awk '!/^#/ {print $1}' ${file})"
+	MASKED+="$(package_envs "${masked}")"$'\n'
+}
+pre_unmask_trash(){
+	unmasked="$(awk '!/^#/ {print $1}' ${file})"
+	UNMASKED+="$(package_envs "${unmasked}")"$'\n'
+}
+############################################################################
+slot_output(){
+	if [[ "${mslot}" != "(null)" ]];then
+		echo -e "${red}Incorrect${restore}: ${mcategory}/${mpn}:${mslot}"
+	else
+		echo -e "${red}Incorrect${restore}: ${mcategory}/${mpn}"
+	fi
+	TRASH+="${mfile} ${mcategory}/${mpn}"$'\n'
+	unset msw mcategory mpn mver mrev mslot mfile usw ucategory upn uver urev uslot ufile
+	_MASK_TRASH_SKIP=1
+}
+non_slot_output(){
+	echo -e "${red}Incorrect${restore}: ${msw}${mcategory}/${mpn}-${mver}"
+	TRASH+="${mfile} ${msw}${mcategory}/${mpn}-${mver}"$'\n'
+	unset msw mcategory mpn mver mrev mslot mfile usw ucategory upn uver urev uslot ufile
+	_MASK_TRASH_SKIP=1
+}
+############################################################################
 mask_trash(){
 	# Check eix cache exists before running eix queries
 	if [[ -n "$(eix --version 2>/dev/null)" ]];then
@@ -1399,28 +1401,11 @@ mask_trash(){
 			return 1
 		fi
 	fi
-	slot_output(){
-		if [[ "${mslot}" != "(null)" ]];then
-			echo -e "${red}Incorrect${restore}: ${mcategory}/${mpn}:${mslot}"
-		else
-			echo -e "${red}Incorrect${restore}: ${mcategory}/${mpn}"
-		fi
-		TRASH+="${mfile} ${mcategory}/${mpn}"$'\n'
-		unset msw mcategory mpn mver mrev mslot mfile usw ucategory upn uver urev uslot ufile
-		# shellcheck disable=SC2104
-		continue
-	}
-	non_slot_output(){
-		echo -e "${red}Incorrect${restore}: ${msw}${mcategory}/${mpn}-${mver}"
-		TRASH+="${mfile} ${msw}${mcategory}/${mpn}-${mver}"$'\n'
-		unset msw mcategory mpn mver mrev mslot mfile usw ucategory upn uver urev uslot ufile
-		# shellcheck disable=SC2104
-		continue
-	}
 	all_mask_trash || return 1
 	###### m->masked; u->unmasked
 	while IFS= read -r msw mcategory mpn mver mrev mslot mfile;do
 		while IFS= read -r usw _ucategory _upn uver urev uslot _ufile;do
+			_MASK_TRASH_SKIP=0
 			[[ "${mrev}" == "(null)" ]] && unset mrev || mver="${mver}-${mrev}"
 			[[ "${urev}" == "(null)" ]] && unset urev || uver="${uver}-${urev}"
 			[[ "${mver}" == "(null)" ]] && unset mver
@@ -1470,6 +1455,7 @@ mask_trash(){
 					fi
 				fi
 			fi
+			[[ "${_MASK_TRASH_SKIP}" -eq 1 ]] && continue
 		done <<< "$(grep " ${mcategory} ${mpn} " <<< "${UNMASKED}")"
 	done <<< "${MASKED}"
 
@@ -1811,6 +1797,38 @@ overlays(){
 		done
 	fi
 
+fix_deps(){
+	DEP_PATH="/var/cache/edb/dep"
+	unset TRASH
+	while IFS= read -r -d '' dep_path;do
+		repo_path="$(sed "s|${DEP_PATH}||" <<< "${dep_path}")"
+		dep_file="${dep_path}.sqlite"
+		if [[ -n "${repo_path}" ]];then
+			if [[ ! -d "${repo_path}" ]];then
+				TRASH+="${dep_path} "
+				[[ -f "${dep_file}" ]] && TRASH+="${dep_file} "
+			elif [[ -d "${repo_path}" && ! "$(ls -A "${repo_path}")" ]];then
+				TRASH+="${dep_path} "
+				[[ -f "${dep_file}" ]] && TRASH+="${dep_file} "
+			elif [[ -d "${repo_path}" && ! "$(ls -A "${dep_path}")" && ! -f "${dep_file}" ]];then
+				TRASH+="${dep_path} "
+			elif [[ -d "${repo_path}" && "$(ls -A "${dep_path}")" && -f "${dep_file}" ]];then
+				file_stamp="$(timestamp "${dep_file}")"
+				path_stamp="$(timestamp "${dep_path}"/*)"
+				if [[ -n "${file_stamp}" && -n "${path_stamp}" ]] && (( file_stamp > path_stamp ));then
+					TRASH+="${dep_path}/* "
+				elif [[ -n "${file_stamp}" && -n "${path_stamp}" ]] && (( file_stamp < path_stamp ));then
+					TRASH+="${dep_file} "
+				fi
+			fi
+		fi
+	done
+	if [[ -n "${TRASH}" ]];then
+		echo "${TRASH}"
+	else
+		stop="true"
+	fi
+}
 	choose_target(){
 		PS3=$(echo -e "${contrast}Choose repo which you want save:${restore} ")
 		select target in ${UNUSED};do
