@@ -612,7 +612,7 @@ sort_keywords(){
 			fi
 		done <<< "${atoms}"
 		sort -u "${tmp_file}" > "${striped}" 2>/dev/null
-		stupid_keywords "${striped}" "${tmp_file}"
+		stupid_keywords "${tmp_file}" "${striped}"
 		rm "${striped}"
 		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 	}
