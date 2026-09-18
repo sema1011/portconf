@@ -160,15 +160,15 @@ TMPDIR_PORTCONF="$(mktemp -d)"
 # Prompt user with Yes/No question. Returns 0 for yes (or empty=accept), 1 for no.
 # Usage: if prompt_yesno "Question?"; then ...; fi
 prompt_yesno(){
-	echo -ne "${1} [${green}Yes${restore}/${red}No${restore}] "
-	while IFS= read -r x;do
+	echo -ne "${1} [${green}Yes${restore}/${red}No${restore}] " <&2
+	while IFS= read -r x <&3;do
 		case ${x} in
 			Yes | YES | yes | Y | y | "" ) return 0;;
 			No | NO | no | N | n ) return 1;;
-			* ) echo -ne "Sorry, response '${x}' not understood. [${green}Yes${restore}/${red}No${restore}] "
+			* ) echo -ne "Sorry, response '${x}' not understood. [${green}Yes${restore}/${red}No${restore}] " <&2
 				continue;;
 		esac
-	done
+	done 3< /dev/tty
 }
 ############################################################################
 ################ rm_comments_check #########################################
