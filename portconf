@@ -1175,7 +1175,7 @@ find_and_remove(){
 		else
 			remove_ask "${target}"
 		fi
-	done < <(find "${PORT_ETC}" -type f ${find_expr} -print0)
+	done < <(eval "find \"${PORT_ETC}\" ${find_expr} -print0")
 }
 ############################################################################
 ################ _check_empty_file #########################################
@@ -1184,15 +1184,15 @@ _check_empty_file(){
 }
 ############################################################################
 ################ empty files ###############################################
-empty_files(){
+	empty_files(){
 	echo -e "${underline}Looking empty files${restore}"
-	find_and_remove "" "_check_empty_file"
+	find_and_remove "-type f" "_check_empty_file"
 }
 ############################################################################
 ################ backup files ##############################################
 backup_files(){
 	echo -e "${underline}Looking backup files${restore}"
-	find_and_remove '\( -name "*~" -o -name "*.bak" -o -name "*.old" \)'
+	find_and_remove '-type f \( -name "*~" -o -name "*.bak" -o -name "*.old" \)'
 }
 ############################################################################
 ################ package.* files 2 dirs ####################################
