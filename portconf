@@ -248,59 +248,45 @@ Create temporary cache?${restore} "
 }
 ############################################################################
 ################ backup ####################################################
-backup(){
-	[[ -d "${BRDIR}" ]] || mkdir -p "${BRDIR}"
-	tarballs="$(ls -1 --color=never ${BRDIR})"
+############################################################################
+################ create_backup #############################################
+# Generic backup function with timestamp check and rotation.
+# $1=backup_dir $2=source_path $3=tar_args $4=label_prefix $5=include_makeconf
+create_backup(){
+	local backup_dir="${1}" source_path="${2}" tar_args="${3}" label="${4}" include_mc="${5}"
+	[[ -d "${backup_dir}" ]] || mkdir -p "${backup_dir}" 2>/dev/null
+	[[ -d "${backup_dir}" ]] || { echo -e "${red}Cannot create ${backup_dir}${restore}"; return 1; }
+	local tarballs oldest count
+	tarballs="$(ls -1 --color=never "${backup_dir}")"
 	oldest="$(head -n1 <<< "${tarballs}")"
-	count="$( wc -l <<< "${tarballs}")"
+	count="$(wc -l <<< "${tarballs}")"
 	count="${count:-0}"
-	if [[ -f "/etc/make.conf" ]];then
-		etc_update="$(timestamp ${PORT_ETC}/{*,*/*,*/*/*,*/*/*/*} /etc/make.conf)"
-	else
-		etc_update="$(timestamp ${PORT_ETC}/{*,*/*,*/*/*,*/*/*/*})"
-	fi
-	portconf_update="$(timestamp ${BRDIR}/*)"
-	portconf_update="${portconf_update:-0}"
-	if (( etc_update > portconf_update ));then
+	local source_update backup_update
+	source_update="$(timestamp "${source_path}")"
+	backup_update="$(timestamp "${backup_dir}"/*)"
+	backup_update="${backup_update:-0}"
+	if (( source_update > backup_update ));then
 		if (( count >= COUNT )) && [[ -n "${oldest}" ]];then
-			rm "${BRDIR}/${oldest}"
+			rm "${backup_dir}/${oldest}"
 		fi
-		echo -e "/etc/portage backup: ${green}creating${restore}..."
-		name="${BRDIR}/portage_$(date +%g.%m.%d-%H:%M).tar.bz2"
-		if [[ -f "/etc/make.conf" ]];then
-			tar -jcf "${name}" -C /etc/ portage make.conf
-		else
-			tar -jcf "${name}" -C /etc/ portage
-		fi
+		echo -e "${label} backup: ${green}creating${restore}..."
+		local name="${backup_dir}/${label}_$(date +%g.%m.%d-%H:%M).tar.bz2"
+		tar -jcf "${name}" ${tar_args}
 	else
-		echo -e "/etc/portage backups: ${green}already up-to-date${restore}"
+		echo -e "${label} backups: ${green}already up-to-date${restore}"
 	fi
+}
+############################################################################
+################ backup ####################################################
+backup(){
+	local mc_flag=""
+	[[ -f "/etc/make.conf" ]] && mc_flag=" make.conf"
+	create_backup "${BRDIR}" "${PORT_ETC}" "-C /etc/ portage${mc_flag}" "/etc/portage" "1"
 }
 ############################################################################
 ################ world_backup ##############################################
 world_backup(){
-	world_dir="${BRDIR}/world"
-	[[ -d "${BRDIR}" ]] || mkdir -p "${BRDIR}" 2>/dev/null
-	[[ -d "${world_dir}" ]] || mkdir -p "${world_dir}" 2>/dev/null
-	[[ -d "${world_dir}" ]] || { echo -e "${red}Cannot create ${world_dir}${restore}"; return 1; }
-	[[ -f "${WORLD}" ]] || { echo -e "${red}World file ${WORLD} not found${restore}"; return 1; }
-	tarballs="$(ls -1 --color=never ${world_dir})"
-	oldest="$(head -n1 <<< "${tarballs}")"
-	count="$( wc -l <<< "${tarballs}")"
-	count="${count:-0}"
-	world_update="$(timestamp ${WORLD})"
-	portconf_update="$(timestamp ${world_dir}/*)"
-	portconf_update="${portconf_update:-0}"
-	if (( world_update > portconf_update ));then
-		if (( count >= COUNT )) && [[ -n "${oldest}" ]];then
-			rm "${world_dir}/${oldest}"
-		fi
-		echo -e "world backup: ${green}creating${restore}..."
-		name="${world_dir}/world_$(date +%g.%m.%d-%H:%M).tar.bz2"
-		tar -jcf "${name}" -C ${WORLD%world} world
-	else
-		echo -e "world backups: ${green}already up-to-date${restore}"
-	fi
+	create_backup "${BRDIR}/world" "${WORLD}" "-C ${WORLD%world} world" "world" ""
 }
 ############################################################################
 ################ restore ###################################################
