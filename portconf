@@ -172,6 +172,9 @@ rm_repo_fix(){
 ############################################################################
 ################ eix check #################################################
 eix_check(){
+	if [[ -n "${EIX_CACHE_CREATED:-}" ]];then
+		return 0
+	fi
 	if [[ -n "$(eix --version 2>/dev/null)" ]];then
 		if [[ "${UID}" -eq 0 ]];then
 			echo -e "${underline}Creating new temporary cache.${restore}"
@@ -182,9 +185,11 @@ eix_check(){
 			export OVERLAY_CACHE_METHOD="parse|ebuild*"
 			eix-update
 			rm_repo_fix
+			EIX_CACHE_CREATED="1"
 		else
 			echo -e "${red}eix_check requires root to write cache.${restore}"
 			eix_cache=""
+			EIX_CACHE_CREATED="1"
 		fi
 	else
 		echo -e "${green}app-portage/eix${restore} ${red}not installed!${restore}"
@@ -833,12 +838,7 @@ env_not_installed(){
 ############################################################################
 ################ incorrect uses ############################################
 invalid_uses(){
-	# Ensure eix cache exists
-	if [[ -z "${eix_cache}" || ! -f "${eix_cache}" ]];then
-		eix_check
-	else
-		export EIX_CACHEFILE="${eix_cache}"
-	fi
+	eix_check
 	set -f
 	FULL="${PROFILE} ${MAKE_USES}"
 	for opt in ${FULL};do
@@ -1021,12 +1021,7 @@ hell_parser(){
 invalid_uses_make(){
 	set -f
 	echo -e "${underline}Checking use flags in${restore} ${contrast}${makefile}${restore}"
-	# Ensure eix cache exists for --print-all-useflags
-	if [[ -z "${eix_cache}" || ! -f "${eix_cache}" ]];then
-		eix_check
-	else
-		export EIX_CACHEFILE="${eix_cache}"
-	fi
+	eix_check
 	tmp_file="${TMPDIR_PORTCONF}/tmp_file"
 	cp "${makefile}" "${tmp_file}"
 
