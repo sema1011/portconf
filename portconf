@@ -1834,6 +1834,7 @@ ${contrast}Common${restore}
 	-s,  --sort:                 Sort entries alphabetically, --use-sort, --keyword-uniq.
  	-y,  --yes:                  Auto answer (Yes).
  	-p,  --pretend:              Check only.
+ 	-n,  --dry-run:              Alias for --pretend, show what would be done.
  	--no-backup:                 Skip backup before operations.
  	--no-diff:                   Skip diff prompts, apply changes directly.
  	-h,  -h, -?, h, --help:      This help.
@@ -1887,10 +1888,10 @@ eix_dep_keys="--use-invalid
 -f"
 opts=" ${PORTCONF_DEFAULT_OPTS} ${*}"
 grep -q -e " --yes\>" -e " -y\>" <<< " ${opts}" && yes="1"
-grep -q -e " --pretend\>" -e " -p\>" <<< " ${opts}" && PRETEND="1"
+grep -q -e " --pretend\>" -e " -p\>" -e " --dry-run\>" -e " -n\>" <<< " ${opts}" && PRETEND="1"
 grep -q -e " --no-backup\>" <<< " ${opts}" && NO_BACKUP="1"
 grep -q -e " --no-diff\>" <<< " ${opts}" && NO_DIFF="1"
-opts="$(sed -e 's| --yes\>||g;s| -y\>||g' -e 's| --pretend\>||g;s| -p\>||g' -e 's| --no-backup\>||g' -e 's| --no-diff\>||g' <<< " ${opts}")"
+opts="$(sed -e 's| --yes\>||g;s| -y\>||g' -e 's| --pretend\>||g;s| -p\>||g' -e 's| --dry-run\>||g;s| -n\>||g' -e 's| --no-backup\>||g' -e 's| --no-diff\>||g' <<< " ${opts}")"
 if grep -q -e "\-\-use-invalid\>" -e "\-ui\>" -e "\-\-use-make\>" -e "\-um\>" \
             -e "\-\-use-full\>" -e "\-uf\>" -e "\-\-trash\>" -e "\-t\>" \
             -e "\-\-force-trash\>" -e "\-ft\>" -e "\-\-full\>" -e "\-f\>" <<< "${opts}";then
@@ -1904,6 +1905,10 @@ else
 	opts="$(sed -e 's| --regen-cache\>||g;s| -rc\>||g' -e 's| --no-backup\>||g' -e 's| --no-diff\>||g' -e '/^[ \t]$/d' <<< " ${opts}")"
 fi
 [[ "${#@}" -eq 0 || -z "${opts}" ]] && help_pc
+# Dry-run banner
+if [[ -n "${PRETEND}" ]];then
+	echo -e "${underline}${contrast}=== DRY-RUN MODE (no changes will be made) ===${restore}"
+fi
 for OPT in ${opts};do
 	case "${OPT}" in
 	--backup | -b ) backup;;
@@ -2012,6 +2017,12 @@ for OPT in ${opts};do
 	--help | -h | -? | h ) help_pc;;
 	esac
 done
+############################################################################
+################ summary ###################################################
+if [[ -n "${PRETEND}" ]];then
+	echo -e "\n${underline}${contrast}=== DRY-RUN COMPLETE ===${restore}"
+	echo -e "No changes were made. Review output above for what would be done."
+fi
 ############################################################################
 ################ cleanup #################################################
 rm -rf "${TMPDIR_PORTCONF}" 2>/dev/null
