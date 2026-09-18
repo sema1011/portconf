@@ -895,21 +895,21 @@ check_uses(){
 				USE_TRASH="${trash}"; apply_use_replacement "remove"
 			done <<< "${global_use}"
 		fi
-		unset ALL_USE LOCAL USES incorrect_use global_use use
-	done <<< "$([[ -n "${atoms}" ]] && echo -e "${atoms}")"
-	while IFS= read -r atom opt;do
-		if [[ -n "${atom}" ]] && [[ -z "${opt}" ]];then
-			echo -e "Removing atom: ${green}${atom}${restore}"
-			sed -e "s|^${atom} *$||" -e '/^$/d' -i "${tmp_file}" 2>/dev/null
-		fi
-	done <<< "$(if [[ -n "${IGNORE}" ]]; then grep -v "${IGNORE}" < "${file}"; else cat "${file}"; fi)"
-	while IFS= read -r atom opt;do
-		if [[ -n "${atom}" ]] && [[ -z "${opt}" ]];then
-			echo -e "Removing atom: ${green}${atom}${restore}"
-			sed -e "s|^${atom} *$||" -e '/^$/d' -i "${tmp_file}" 2>/dev/null
-		fi
-	done <<< "$(if [[ -n "${IGNORE}" ]]; then grep -v "${IGNORE}" < "${tmp_file}"; else cat "${tmp_file}"; fi)"
-	unset FORMAT USEONLY
+ 	unset ALL_USE LOCAL USES incorrect_use global_use use
+ 	done <<< "$([[ -n "${atoms}" ]] && echo -e "${atoms}")"
+ 	while read -r atom opt;do
+ 		if [[ -n "${atom}" ]] && [[ -z "${opt}" ]];then
+ 			echo -e "Removing atom: ${green}${atom}${restore}"
+ 			sed -e "s|^${atom} *$||" -e '/^$/d' -i "${tmp_file}" 2>/dev/null
+ 		fi
+ 	done <<< "$(if [[ -n "${IGNORE}" ]]; then grep -v "${IGNORE}" < "${file}"; else cat "${file}"; fi)"
+ 	while read -r atom opt;do
+ 		if [[ -n "${atom}" ]] && [[ -z "${opt}" ]];then
+ 			echo -e "Removing atom: ${green}${atom}${restore}"
+ 			sed -e "s|^${atom} *$||" -e '/^$/d' -i "${tmp_file}" 2>/dev/null
+ 		fi
+ 	done <<< "$(if [[ -n "${IGNORE}" ]]; then grep -v "${IGNORE}" < "${tmp_file}"; else cat "${tmp_file}"; fi)"
+ 	unset FORMAT USEONLY
 }
 ############################################################################
 ################ invalid_uses ##############################################
