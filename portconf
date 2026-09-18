@@ -507,6 +507,7 @@ sort_use_file(){
 stupid_keywords(){
 	local tmp_out="${TMPDIR_PORTCONF}/stupid_kw_out"
 	cp "${2}" "${tmp_out}" 2>/dev/null
+	local has_dups=0
 	unset ACCEPT_KEYWORDS
 	local ACCEPT_KEYWORDS
 	ACCEPT_KEYWORDS="$(eix --print ACCEPT_KEYWORDS | tr ' ' $'\n' | sort -u | tr $'\n' ' ')"
@@ -514,9 +515,8 @@ stupid_keywords(){
 		declare -A reported
 		while read satom lkeys;do
 			comment="$(cut -d\# -f2- <<< "${lkeys}")"
-			lkeys="${lkeys%%#*}"
-			lkeys="${lkeys%% }"
-			out_keys="$(tr ' ' $'\n' <<< "${lkeys}")"
+			lkeys="$(sed 's/  */ /g; s/^ //; s/ $//' <<< "${lkeys%%#*}")"
+			out_keys="$(tr ' ' $'\n' <<< "${lkeys}" | sed '/^$/d')"
 			#### wildcards
 			pcategory="${satom%%/*}"
 			pcategory="$(tr -d "<>=~" <<< "${pcategory}")"
@@ -529,19 +529,19 @@ stupid_keywords(){
 							if [[ -z "${reported[${satom}]:-}" ]];then
 								echo -e "Twice defined keyword ${red}${key}${restore}:\t${green}${satom}${restore}"
 								reported["${satom}"]=1
+								has_dups=1
 							fi
-							out_keys="$(grep -vF "${key}" <<< "${out_keys}")"
+							out_keys="$(grep -vF "${key}" <<< "${out_keys}" | sed '/^$/d')"
 						fi
 					done
 				done
 			fi
-			out_keys="$(tr $'\n' ' ' <<< "${out_keys}")"
-			out_keys="${out_keys% }"
+			out_keys="$(tr $'\n' ' ' <<< "${out_keys}" | sed 's/  */ /g; s/^ //; s/ $//')"
 			if [[ "${lkeys}" != "${out_keys}" ]];then
-				if [[ -n "${out_keys% }" ]];then
+				if [[ -n "${out_keys}" ]];then
 					if [[ -n "${comment}" ]];then
 						string="$(grep "^${satom} ${lkeys} .*#${comment}$" "${1}")"
-						fixed_string="${satom} ${out_keys% } #${comment}"
+						fixed_string="${satom} ${out_keys} #${comment}"
 					else
 						string="$(grep "^${satom} ${lkeys}$" "${1}")"
 						fixed_string="${satom} ${out_keys}"
@@ -555,8 +555,12 @@ stupid_keywords(){
 		done < "${1}"
 		unset reported
 	done
+	# Clean all double spaces to prevent infinite loop
+	sed -i 's/  */ /g; s/^ //; s/ $//' "${tmp_out}"
 	cp "${tmp_out}" "${2}"
 	rm -f "${tmp_out}"
+	[[ "${has_dups}" -eq 1 ]] && return 0
+	return 1
 }
 ############################################################################
 ################ sort_keys #################################################
@@ -613,6 +617,8 @@ sort_keywords(){
 		done <<< "${atoms}"
 		sort -u "${tmp_file}" > "${striped}" 2>/dev/null
 		stupid_keywords "${tmp_file}" "${striped}"
+		# Clean double spaces to prevent infinite loop
+		sed -i 's/  */ /g; s/^ //; s/ $//' "${striped}"
 		rm "${tmp_file}"
 		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
 	}
