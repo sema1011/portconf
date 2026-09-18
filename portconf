@@ -156,7 +156,6 @@ sed_escape(){
 ################ temp directory ##########################################
 TMPDIR_PORTCONF="$(mktemp -d)"
 ############################################################################
-############################################################################
 ################ prompt_yesno ##############################################
 # Prompt user with Yes/No question. Returns 0 for yes (or empty=accept), 1 for no.
 # Usage: if prompt_yesno "Question?"; then ...; fi
@@ -172,7 +171,6 @@ prompt_yesno(){
 	done
 }
 ############################################################################
-############################################################################
 ################ rm_comments_check #########################################
 # Check and remove comments from package files.
 # $1 = mode: "leading" (only leading #) or "all" (all inline #)
@@ -187,12 +185,10 @@ rm_comments_check(){
 	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 }
 ############################################################################
-############################################################################
 ################ timestamp #################################################
 timestamp(){
 	stat -c %Y "$@" 2>/dev/null | sort | tail -n1
 }
-############################################################################
 ############################################################################
 ################ eix check #################################################
 eix_check(){
@@ -502,7 +498,6 @@ sort_uses(){
 	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
 } 2>/dev/null
 ############################################################################
-############################################################################
 ################ stupid_keyword ############################################
 stupid_keywords(){
 	local tmp_out="${TMPDIR_PORTCONF}/stupid_kw_out"
@@ -750,37 +745,15 @@ force_not_installed(){
 	done < <(find "${PORT_ETC}"/package* -type f -print0)
 }
 ############################################################################
-################ package.env conf ##########################################
-package_env_conf(){
+################ package.env ################################################
+# Check package.env: unused configs and non-existent configs
+package_env_check(){
+	# Check for unused env configs
 	[[ -d "${PORT_ETC}/env" ]] || return 0
 	all_confs="$(find "${PORT_ETC}/env/" -maxdepth 1 -type f)"
 	all_confs="${all_confs//${PORT_ETC////\/}\/env\//}"
 	file_or_dir "package.env" "Checking unused configs in" "check_env_conf" || return 1
-}
-package_env_def(){
-	tmp_file="${TMPDIR_PORTCONF}/tmp_file"
-	cp "${file}" "${tmp_file}"
-	while IFS= read -r line;do
-		xline="$(sed 's/^[ \t]*//;s/[ \t]*$//' <<< "${line%%#*}")"
-		atom="${xline%% *}"
-		all_confs="${xline#${atom} }"
-		for conf in ${all_confs};do
-			if [[ -f "${PORT_ETC}/env/${conf}" ]];then
-				IGNORE+=$'\n'"${conf}"
-			else
-				echo -e "Defined conf not exists: ${red}${conf}${restore}"
-				new_line=$(grep -v "^${conf}$" <<< "$(tr ' ' $'\n' <<< "${line}")" | tr $'\n' ' ')
-				new_line="$(sed 's/^[ \t]*//;s/[ \t]*$//' <<< "${new_line}")"
-				sed "s|$(sed_escape "${line}")|$(sed_escape "${new_line}")|" -i "${tmp_file}"
-				line="${new_line}"
-			fi
-		done
-	done < "${file}"
-	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
-}
-############################################################################
-################ package.env ###############################################
-package_env(){
+	# Check for non-existent env configs
 	file_or_dir "package.env" "Checking defined configs in" "package_env_def" || return 1
 }
 ############################################################################
@@ -2020,8 +1993,7 @@ for OPT in ${opts};do
 	--trash | -t )
 		[[ -z "${NO_BACKUP}" ]] && backup;
 		not_found;
-		package_env_conf;
-		package_env;
+		package_env_check;
 		env_not_installed;
 		empty_files;
 		backup_files;
@@ -2035,8 +2007,7 @@ for OPT in ${opts};do
 	--force-trash | -ft )
 		[[ -z "${NO_BACKUP}" ]] && backup;
 		not_found;
-		package_env_conf;
-		package_env;
+		package_env_check;
 		env_not_installed;
 		force_not_installed;
 		empty_files;
@@ -2052,8 +2023,7 @@ for OPT in ${opts};do
 		[[ -z "${NO_BACKUP}" ]] && backup;
 		sort_uniq_files;
 		not_found;
-		package_env_conf;
-		package_env;
+		package_env_check;
 		env_not_installed;
 		file_or_dir "package.use" "Sorting use flags in" "set -f" "sort_uses" "set +f";
 		sort_uniq_mask_use;
