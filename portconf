@@ -74,7 +74,7 @@ $_resolved"
 }
 
 [[ -h "/etc/make.profile" ]] && pre_profile="$(profile "$(readlink -f "/etc/make.profile")")"
-[[ -h "/etc/portage/make.profile" ]] && pre_profile="$(profile "$(readlink -f "/etc/portage/makeprofile")")"
+[[ -h "/etc/portage/make.profile" ]] && pre_profile="$(profile "$(readlink -f "/etc/portage/make.profile")")"
 profile_uses="$(sort_passed_uses "${pre_profile}")"
 PROFILE="$(tr "[:space:]" $'\n' <<< "${profile_uses}")"
 ############################################################################
@@ -247,9 +247,9 @@ Create temporary cache?${restore} "
 ############################################################################
 ################ create_backup #############################################
 # Generic backup function with timestamp check and rotation.
-# $1=backup_dir $2=source_path $3=tar_args $4=label_prefix $5=include_makeconf
+# $1=backup_dir $2=source_path $3=tar_args $4=label_prefix
 create_backup(){
-	local backup_dir="${1}" source_path="${2}" tar_args="${3}" label="${4}" include_mc="${5}"
+	local backup_dir="${1}" source_path="${2}" tar_args="${3}" label="${4}"
 	[[ -d "${backup_dir}" ]] || mkdir -p "${backup_dir}" 2>/dev/null
 	[[ -d "${backup_dir}" ]] || { echo -e "${red}Cannot create ${backup_dir}${restore}"; return 1; }
 	local tarballs oldest count
@@ -266,7 +266,8 @@ create_backup(){
 			rm "${backup_dir}/${oldest}"
 		fi
 		echo -e "${label} backup: ${green}creating${restore}..."
-		local name="${backup_dir}/${label}_$(date +%g.%m.%d-%H:%M).tar.bz2"
+		local name
+		name="${backup_dir}/${label}_$(date +%g.%m.%d-%H:%M).tar.bz2"
 		tar -jcf "${name}" ${tar_args}
 	else
 		echo -e "${label} backups: ${green}already up-to-date${restore}"
@@ -277,12 +278,12 @@ create_backup(){
 backup(){
 	local mc_flag=""
 	[[ -f "/etc/make.conf" ]] && mc_flag=" make.conf"
-	create_backup "${BRDIR}" "${PORT_ETC}" "-C /etc/ portage${mc_flag}" "/etc/portage" "1"
+	create_backup "${BRDIR}" "${PORT_ETC}" "-C /etc/ portage${mc_flag}" "/etc/portage"
 }
 ############################################################################
 ################ world_backup ##############################################
 world_backup(){
-	create_backup "${BRDIR}/world" "${WORLD}" "-C ${WORLD%world} world" "world" ""
+	create_backup "${BRDIR}/world" "${WORLD}" "-C ${WORLD%world} world" "world"
 }
 ############################################################################
 ################ restore ###################################################
@@ -395,9 +396,8 @@ remove_ask(){
 	elif [[ -n "${yes}" && -z "${PRETEND}" ]];then
 		echo -e "${contrast}Removing${restore} ${green}${1}${restore}"
 		rm -rf "${1}" 2>/dev/null
-		eend 0 2>/dev/null
 	elif [[ -z "${yes}" && -n "${PRETEND}" ]];then
-		eend 0 2>/dev/null
+		:
 	fi
 }
 ############################################################################
@@ -483,7 +483,7 @@ sort_uses(){
 		else
 			echo "${atom} ${uses}" >> "${tmp_file}"
 		fi
-		unset atom atom_opts option options uses comment
+		unset atom atom_opts option uses comment
 	done
 	cp "${tmp_file}" "${striped}" 2>/dev/null
 
@@ -647,12 +647,11 @@ parse_atom(){
 # Check if a package is installed.
 # Args: $1=category $2=pn $3=ver $4=slot $5=defined_repo
 # Sets global: IS_INSTALLED=0 or 1
-check_installed(){
+	check_installed(){
 	local cat="${1}" pn="${2}" ver="${3}" slot="${4}" defined_repo="${5}"
-	local installed installed_slots full_vers all_vers full_ver
+	local installed full_vers all_vers full_ver
 	installed="$(qlist -ICSec "${cat}/${pn}" 2>/dev/null | awk '{print $2}')"
 	if [[ -n "${installed}" ]];then
-		installed_slots="$(awk -F \: '{print $2}' <<< "${installed}")"
 		if [[ -n "${defined_repo}" ]];then
 			full_vers="$(qlist -ICev "${cat}/${pn}" 2>/dev/null | sed "s|${cat}/${pn}-||g")"
 			(( "$(wc -l <<< "${full_vers}")" > 1 ))
@@ -674,24 +673,6 @@ check_installed(){
 }
 ############################################################################
 ################ not_installed #############################################
-installed(){
-	installed="$(qlist -ICSec "${category}/${pn}" 2>/dev/null | awk '{print $2}')"
-	if [[ -n "${installed}" ]];then
-		installed_slots="$(awk -F \: '{print $2}' <<< "${installed}")"
-		#::repo check
-		full_vers="$(qlist -ICev "${category}/${pn}" 2>/dev/null | sed "s|${category}/${pn}-||g")"
-		(( "$(wc -l <<< "${full_vers}")" > 1 ))
-		if [[ -n "${defined_repo}" ]];then
-			for ver in ${full_vers};do
-				all_vers+=" ${PKGDB}/${category}/${pn}-${ver}/repository"
-			done
-			grep -qe "^${defined_repo}$" "${all_vers}" || unset installed
-			unset all_vers
-		fi
-		[[ "${installed_slots}" == "0" ]] && unset installed_slots
-	fi
-}
-
 not_if(){
 	atoms="$(awk '{print $1}' <<< "$(awk '!/^#/' < "${package}")")"
 	[[ -n "${IGNORE}" ]] && atoms="$(grep -v "${IGNORE}" <<< "${atoms}")"
@@ -843,21 +824,7 @@ apply_use_replacement(){
 	done <<< "${strings}"
 }
 ############################################################################
-################ incorrect uses ############################################
-invalid_uses(){
-	eix_check
-	# If cache creation failed (no root), skip invalid USE check
-	if [[ -z "${eix_cache}" || ! -f "${eix_cache}" ]];then
-		echo -e "${red}eix cache unavailable (not root), skipping invalid USE check${restore}"
-		return 0
-	fi
-	set -f
-	FULL="${PROFILE} ${MAKE_USES}"
-	for opt in ${FULL};do
-		GLOBAL+=" $(echo "${FULL}" | tr "[:space:]" $'\n' | grep -e "^${opt#-}$" -e "^-${opt#-}$" | tail -n1)"
-	done
-	GLOBAL="$(echo "${GLOBAL}" | tr "[:space:]" $'\n' | sort -u)"
-############################################################################
+################ check_uses ##############################################
 check_uses(){
 	echo -e "${underline}Checking use flags in${restore} ${contrast}${file#${PORT_ETC}/}${restore}:"
 	##### eix env #####
@@ -1137,7 +1104,6 @@ not_found(){
 					echo -e "${red}Incorrect:${restore} ${line}"
 					[[ -n "${line}" ]] && sed -e "s|${line//'*'/\*}||" -e 's/[ \t]*$//' -e '/^$/d' -i "${tmp_package}"
 					[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_package}"
-					eend 0 2>/dev/null
 			done
 		fi
 	done
@@ -1259,7 +1225,6 @@ convert_package_files(){
 				rm "${tmp_file}" 2>/dev/null
 			else
 				echo -e "${underline}Skipping ${red}file${restore}: ${contrast}${package##*/}${restore}"
-				eend 0 2>/dev/null
 			fi
 		elif [[ -d "${package}" ]];then
 			if [[ "${direction}" == "d2f" ]];then
@@ -1279,7 +1244,6 @@ convert_package_files(){
 				rm "${tmp_file}" 2>/dev/null
 			else
 				echo -e "${underline}Skipping ${red}directory${restore}: ${contrast}${package##*/}${restore}"
-				eend 0 2>/dev/null
 			fi
 		fi
 	done <<< "$(for p in "${PORT_ETC}"/package*; do [[ "${p}" != *'~' ]] && printf '%s\n' "$p"; done 2>/dev/null)"
@@ -1620,22 +1584,19 @@ regen_world(){
 	mv "${WORLD}" "${ex_world}"
 	echo -e "Calculating dependencies"
 
-	pre_pre="$(emerge -eopd --columns --with-bdeps=y world 2>"${emerge_log}" || exit 1)"
-
-	if [[ $? == 1 ]];then
+	if ! pre_pre="$(emerge -eopd --columns --with-bdeps=y world 2>"${emerge_log}")";then
 		mv "${ex_world}" "${WORLD}"
 		cat "${emerge_log}"
-		rm "${tmp_world}" "${emerge_log}"
+		rm -f "${tmp_world}" "${emerge_log}"
 		echo -e "\n${red}ERROR!!!${restore} exit\n"
 		exit 1
-	else
-		rm "${emerge_log}"
 	fi
+	rm -f "${emerge_log}"
 
 	installed="$(qlist -CI | sort -u)"
 	echo "${installed}" > "${WORLD}"
 
-	pretend="$(grep -v "blocks" <<< "${pre_pre}" | awk '/^\[/ {print $4}')" && eend 0 2>/dev/null
+	pretend="$(grep -v "blocks" <<< "${pre_pre}" | awk '/^\[/ {print $4}')"
 	pretend+="$(qlist -CI "$(emerge -epO system | awk '/\[/ {print $4}')")"$'\n'
 
 	for atom in ${installed};do
@@ -1791,9 +1752,9 @@ fix_deps(){
 				elif [[ -n "${file_stamp}" && -n "${path_stamp}" ]] && (( file_stamp < path_stamp ));then
 					TRASH+="${dep_file} "
 				fi
-			fi
 		fi
-	done
+	fi
+	done < <(find "${DEP_PATH}" -type d -print0 2>/dev/null)
 	if [[ -n "${TRASH}" ]];then
 		echo "${TRASH}"
 	else
@@ -1911,6 +1872,7 @@ OPTIONS must be separated by SPACE."
 }
 ############################################################################
 ################ run_it ####################################################
+# shellcheck disable=SC2034
 eix_dep_keys="--use-invalid
 -ui
 --use-make
@@ -1929,7 +1891,9 @@ grep -q -e " --pretend\>" -e " -p\>" <<< " ${opts}" && PRETEND="1"
 grep -q -e " --no-backup\>" <<< " ${opts}" && NO_BACKUP="1"
 grep -q -e " --no-diff\>" <<< " ${opts}" && NO_DIFF="1"
 opts="$(sed -e 's| --yes\>||g;s| -y\>||g' -e 's| --pretend\>||g;s| -p\>||g' -e 's| --no-backup\>||g' -e 's| --no-diff\>||g' <<< " ${opts}")"
-if grep -q "${eix_dep_keys//\-/\\-}" <<< "${opts}";then
+if grep -q -e "\-\-use-invalid\>" -e "\-ui\>" -e "\-\-use-make\>" -e "\-um\>" \
+            -e "\-\-use-full\>" -e "\-uf\>" -e "\-\-trash\>" -e "\-t\>" \
+            -e "\-\-force-trash\>" -e "\-ft\>" -e "\-\-full\>" -e "\-f\>" <<< "${opts}";then
 	if grep -q -e " --regen-cache\>" -e " -rc\>" <<< " ${opts}";then
 		eix_check
 		opts="$(sed -e 's| --regen-cache\>||g;s| -rc\>||g' -e 's| --no-backup\>||g' -e 's| --no-diff\>||g' -e '/^[ \t]$/d' <<< " ${opts}")"
@@ -2051,4 +2015,3 @@ done
 ############################################################################
 ################ cleanup #################################################
 rm -rf "${TMPDIR_PORTCONF}" 2>/dev/null
-}
