@@ -90,6 +90,11 @@ PROFILE="$(tr "[:space:]" $'\n' <<< "${profile_uses}")"
 ############################################################################
 ################ profile_use ###############################################
 profile_use(){
+	# Non-interactive fallback: show all profiles
+	if [[ ! -t 0 ]];then
+		all_use_all_profiles
+		return 0
+	fi
 	PS3=$(echo -e "${contrast}Choose number:${restore} ")
 	select target in $(eselect --brief profile list);do
 		profile_uses="$(profile "${PORTDIR}/profiles/${target}")"
@@ -283,24 +288,32 @@ restore(){
 	tarballs="${tarballs//${2}_/}"
 	PS3=$(echo -e "${contrast}Choose number:${restore} ")
 	echo -e "${contrast}Available backups${restore}:"
-	select answer in ${tarballs};do
-		echo -e "Rolling back ${3} to the state ${green}${answer}${restore}"
-		if [[ -n "${5}" ]];then
-			# Prevent glob expansion: remove the glob pattern and use find instead
-			case "${5}" in
-				*\**|*\?*|*\[*)
-					local _rm_targets
-					_rm_targets="$(eval echo "${5}" 2>/dev/null)"
-					for _rt in ${_rm_targets};do
-						[[ -e "${_rt}" || -L "${_rt}" ]] && rm -rf "${_rt}"
-					done
-					;;
-				*) rm -rf "${5}" ;;
-			esac
-		fi
-		tar -xf "${1}/${2}_${answer}.tar.bz2" -C "${4}" 2>/dev/null
-		break
-	done
+	# Non-interactive fallback: list and exit
+	if [[ ! -t 0 ]];then
+		select answer in ${tarballs};do
+			[[ -n "${answer}" ]] && break
+		done
+		[[ -z "${answer}" ]] && { echo -e "${red}Aborted (non-interactive)${restore}"; return 1; }
+	else
+		select answer in ${tarballs};do
+			[[ -n "${answer}" ]] && break
+		done
+	fi
+	echo -e "Rolling back ${3} to the state ${green}${answer}${restore}"
+	if [[ -n "${5}" ]];then
+		# Prevent glob expansion: remove the glob pattern and use find instead
+		case "${5}" in
+			*\**|*\?*|*\[*)
+				local _rm_targets
+				_rm_targets="$(eval echo "${5}" 2>/dev/null)"
+				for _rt in ${_rm_targets};do
+					[[ -e "${_rt}" || -L "${_rt}" ]] && rm -rf "${_rt}"
+				done
+				;;
+			*) rm -rf "${5}" ;;
+		esac
+	fi
+	tar -xf "${1}/${2}_${answer}.tar.bz2" -C "${4}" 2>/dev/null
 }
 ############################################################################
 ################ etc_restore ###############################################
