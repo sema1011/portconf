@@ -525,10 +525,6 @@ sort_uses(){
 	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
 } 2>/dev/null
 ############################################################################
-################ package.use ###############################################
-sort_use_file(){
-	file_or_dir "package.use" "Sorting use flags in" "set -f" "sort_uses" "set +f" || return 1
-}
 ############################################################################
 ################ stupid_keyword ############################################
 stupid_keywords(){
@@ -656,11 +652,6 @@ sort_keys(){
 ################ one_keyword ###############################################
 sort_keywords(){
 	file_or_dir "package.keywords package.accept_keywords" "Sorting keywords in" "SORT_KEYS_MODE=last" "sort_keys" || return 1
-}
-############################################################################
-################ uniq_keyword ##############################################
-uniq_keywords(){
-	file_or_dir "package.keywords package.accept_keywords" "Sorting keywords in" "set -f" "sort_keys" "set +f" || return 1
 }
 ############################################################################
 ################ not_installed #############################################
@@ -1961,13 +1952,13 @@ for OPT in ${opts};do
 	--restore | -r ) etc_restore;;
 	--sort | -s )
 		[[ -z "${NO_BACKUP}" ]] && backup;
-		sort_use_file;
-		uniq_keywords;
+		file_or_dir "package.use" "Sorting use flags in" "set -f" "sort_uses" "set +f";
+		file_or_dir "package.keywords package.accept_keywords" "Sorting keywords in" "set -f" "sort_keys" "set +f";
 		sort_uniq_files;
 		sort_uniq_mask_use;;
 	--use-sort | -us )
 		[[ -z "${NO_BACKUP}" ]] && backup;
-		sort_use_file;;
+		file_or_dir "package.use" "Sorting use flags in" "set -f" "sort_uses" "set +f";;
 	--use-invalid | -ui )
 		[[ -z "${NO_BACKUP}" ]] && backup;
 		invalid_uses;
@@ -1982,7 +1973,7 @@ for OPT in ${opts};do
 		check_use_masked;;
 	--use-full | -uf )
 		[[ -z "${NO_BACKUP}" ]] && backup;
-		sort_use_file;
+		file_or_dir "package.use" "Sorting use flags in" "set -f" "sort_uses" "set +f";
 		sort_uniq_mask_use;
 		invalid_uses;
 		invalid_uses_make;
@@ -1994,7 +1985,7 @@ for OPT in ${opts};do
 		sort_keywords;;
 	--keyword-uniq | -ku )
 		[[ -z "${NO_BACKUP}" ]] && backup;
-		uniq_keywords;;
+		file_or_dir "package.keywords package.accept_keywords" "Sorting keywords in" "set -f" "sort_keys" "set +f";;
 	--trash | -t )
 		[[ -z "${NO_BACKUP}" ]] && backup;
 		not_found;
@@ -2033,13 +2024,13 @@ for OPT in ${opts};do
 		package_env_conf;
 		package_env;
 		env_not_installed;
-		sort_use_file;
+		file_or_dir "package.use" "Sorting use flags in" "set -f" "sort_uses" "set +f";
 		sort_uniq_mask_use;
 		invalid_uses;
 		invalid_uses_make;
 		use_makeconf;
 		check_use_masked;
-		uniq_keywords;
+		file_or_dir "package.keywords package.accept_keywords" "Sorting keywords in" "set -f" "sort_keys" "set +f";
 		mask_trash;
 		stupid_unmask;
 		empty_files;
