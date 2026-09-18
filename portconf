@@ -1155,16 +1155,16 @@ use_makeconf(){
 	USE="$(echo -e "${MAKE_USES}" | tr "[:space:]" $'\n' | sort -u | sed -e '/^$/d')"
 
 	tmp_file="${TMPDIR_PORTCONF}/tmp_file"
-	cp "${makefile}" "${tmp_file}"
+ 	cp "${makefile}" "${tmp_file}"
 	while read use;do
 		flag="${use#-}"
 		if [[ -n ${flag} ]];then
 			if grep -q "^${flag}$" <<< "${USE}" && grep -q "^${flag}$" <<< "${PROFILE}";then
 				echo -e "Twice defined: ${red}${use}${restore}"
-				sed -e "s|[^[:punct:]]\\<$(sed_escape "${flag}")\\>||g" -i ${tmp_file}
+				sed -e "s|\\b$(sed_escape "${flag}")\\b||g" -i ${tmp_file}
 			elif grep -q "^-${flag}$" <<< "${USE}" && grep -q "^-${flag}$" <<< "${PROFILE}";then
 				echo -e "Twice defined: ${red}-${use}${restore}"
-				sed -e "s|[^[:punct:]]\\-\\<$(sed_escape "${flag}")\\>||g" -i ${tmp_file}
+				sed -e "s|\\b-\\$(sed_escape "${flag}")\\b||g" -i ${tmp_file}
 			fi
 		fi
 	done <<< "${PROFILE}"
