@@ -379,7 +379,7 @@ sort_uniq_files(){
 
 		sed -e '/^$/d' -e 's/[ \t]*$//' -i ${tmp_sort}
 		sort -u "${tmp_sort}" 2>/dev/null
-		diff_ask "${package}" "${tmp_sort}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_sort}"
 		eend $? 2>/dev/null
 	done
 }
@@ -429,7 +429,7 @@ rm_comments(){
 		tmp_file="$(mktemp)"
 		cp "${file}" "${tmp_file}"
 		sed -e "s|^#.*||g" -e '/^$/d' -i ${tmp_file}
-		diff_ask "${file}" "${tmp_file}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 		eend $? 2>/dev/null
 	}
 	file_or_dir "package.*" "Checking comments:" "no_newline" || return 1
@@ -441,7 +441,7 @@ rm_all_comments(){
 		tmp_file="$(mktemp)"
 		cp "${file}" "${tmp_file}"
 		sed -e "s|#.*||g" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_file}
-		diff_ask "${file}" "${tmp_file}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 		eend $? 2>/dev/null
 	}
 	file_or_dir "package.*" "Checking comments:" "no_newline_inline"  || return 1
@@ -476,7 +476,7 @@ sort_uses(){
 	sed -e 's/[ \t]*$//' -e '/^$/d' -e 's|  | |g' -e "s| - | |g" -i "${striped}" 2>/dev/null
 	sort -u "${striped}" 2>/dev/null
 	rm "${tmp_file}" 2>/dev/null
-	diff_ask "${file}" "${striped}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
 	eend $? 2>/dev/null
 } 2>/dev/null
 ############################################################################
@@ -564,7 +564,7 @@ sort_keys(){
 	cp "${striped}" "${tmp_file}"
 	stupid_keywords "${tmp_file}" "${striped}"
 	rm "${tmp_file}" 2>/dev/null
-	diff_ask "${file}" "${striped}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
 	eend $? 2>/dev/null
 } #2>/dev/null
 ############################################################################
@@ -589,7 +589,7 @@ sort_keywords(){
 		cp "${tmp_file}" "${striped}"
 		stupid_keywords "${striped}" "${tmp_file}"
 		rm "${striped}"
-		diff_ask "${file}" "${tmp_file}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 		eend $? 2>/dev/null
 	}
 	file_or_dir "package.keywords package.accept_keywords" "Sorting keywords in" "keys" || return 1
@@ -673,7 +673,7 @@ force_not_installed(){
 				not_if;
 				eend $? 2>/dev/null
 			fi
-			diff_ask "${package}" "${tmp_package}"
+			[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_package}"
 		else
 			pack="${package%/*}"
 			echo -e "${underline}Empty file${restore} ${contrast}${pack}${restore}"
@@ -736,7 +736,7 @@ package_env(){
 				fi
 			done
 		done < "${file}"
-		diff_ask "${file}" "${tmp_file}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 		eend $? 2>/dev/null
 	}
 	file_or_dir "package.env" "Checking defined configs in" "package_env_def" || return 1
@@ -941,7 +941,7 @@ invalid_uses(){
 		check_uses;
 		tput el;
 		tput cnorm;
-		diff_ask "${file}" "${tmp_file}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 		[[ ! -s "${file}" ]] && remove_ask "${file}"
 	elif [[ -d "${PORT_ETC}/package.use" ]];then
 		for f in $(find ${PORT_ETC}/package.use/ -type f \! -name '*~' \! -name '*.bak');do
@@ -961,7 +961,7 @@ invalid_uses(){
 				chars="$(wc -m <<< "${count}")"
 				check_uses;
 				tput cnorm
-				diff_ask "${file}" "${tmp_file}"
+				[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 				[[ ! -s "${file}" ]] && remove_ask "${file}"
 			else
 				echo -e "${underline}Removing empty file${restore} ${contrast}${f}${restore}"
@@ -1012,7 +1012,7 @@ invalid_uses_make(){
 			sed -e "s|${line%\\}|${fixed_line%\\}|" -i "${tmp_file}"
 		done
 	fi
-	diff_ask "${makefile}" "${tmp_file}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${makefile}" "${tmp_file}"
 	set +f
 }
 ############################################################################
@@ -1033,7 +1033,7 @@ not_found(){
 				[[ -n "${line}" ]] && sed -e "s|$line||" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_package} 2>/dev/null
 				eend $? 2>/dev/null
 			done <<< "${incorrect}"
-			diff_ask "${package}" "${tmp_package}"
+			[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_package}"
 		elif [[ -n "${incorrect}" && -d "${package}" ]];then
 			echo -e "${underline}Removing incorrect from${restore} ${contrast}${package}${restore}:"
 			IFS=$'\n'
@@ -1043,7 +1043,7 @@ not_found(){
 					cp "${file}" "${tmp_file}"
 					echo -e "${red}Incorrect:${restore} ${line}"
 					[[ -n "${line}" ]] && sed -e "s|${line//'*'/\*}||" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_file}
-					diff_ask "${file}" "${tmp_file}"
+					[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 					eend $? 2>/dev/null
 				done
 			done
@@ -1071,14 +1071,14 @@ not_found(){
 			tmp_file="$(mktemp)"
 			cp "${file}" "${tmp_file}"
 			[[ -n "${line}" ]] && sed -e "s|$(echo "$line")$||" -e 's|[ \t]| |' -e '/^[ \t]$/d' -e '/^$/d' -i "${tmp_file}"
-			diff_ask "${file}" "${tmp_file}"
+			[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 		elif [[ -n "${line}" && -d "${file}" ]];then
 			for package in $(grep -RH "${line//'*'/\*}" "${file}"/ | awk -F \: '{print $1}');do
 					tmp_package="$(mktemp)"
 					cp "${package}" "${tmp_package}"
 					echo -e "${red}Incorrect:${restore} ${line}"
 					[[ -n "${line}" ]] && sed -e "s|${line//'*'/\*}||" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_package}
-					diff_ask "${package}" "${tmp_package}"
+					[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_package}"
 					eend $? 2>/dev/null
 			done
 		fi
@@ -1102,7 +1102,7 @@ not_found(){
 		while read line;do
 			sed -e "s|^$(printf ${line}).*$||;s|^${line//\*/\\*}.*$||" -e 's|[ \t]| |;/^[ \t]$/d;/^$/d' -i "${tmp_file}"
 		done <<< "${tlines}"
-		diff_ask "${file}" "${tmp_file}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 		set +f
 	}
 	if [[ -n "${invalid}" ]];then
@@ -1132,7 +1132,7 @@ use_makeconf(){
 			fi
 		fi
 	done <<< "${PROFILE}"
-	diff_ask "${makefile}" "${tmp_file}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${makefile}" "${tmp_file}"
 	eend $? 2>/dev/null
 }
 ############################################################################
@@ -1339,7 +1339,7 @@ mask_trash(){
 			for trash_atom in ${incorrect};do
 				sed -e "s|^${trash_atom}.*||" -e '/^$/d' -e 's/[ \t]*$//' -i "${tmp_file}"
 			done
-			diff_ask "${target}" "${tmp_file}"
+			[[ -z "${NO_DIFF}" ]] && diff_ask "${target}" "${tmp_file}"
 		fi
 	done
 	unset TRASH OVERLAYS_LIST VERSIONONLY FORMAT MASKED UNMASKED versions oldest versions_diff versions_btwn
@@ -1366,7 +1366,7 @@ remove_trash(){
 			fi
 		done <<< "${lines}"
 	done
-	diff_ask "${file}" "${tmp_file}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 	eend $? 2>/dev/null
 }
 ############################################################################
@@ -1391,7 +1391,7 @@ sort_uniq_mask_use(){
 
 			sort_passed_uses "${masked_uses}" | tr "[:space:]" $'\n' > ${tmp_sort}
 
-			diff_ask "${package}" "${tmp_sort}"
+			[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_sort}"
 			eend $? 2>/dev/null
 		done
 	fi
@@ -1450,7 +1450,7 @@ etc_profile_use_mask() {
 			fi
 		fi
 	done < "${orig_file}"
-	diff_ask "${orig_file}" "${tmp_file}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${orig_file}" "${tmp_file}"
 }
 
 check_use_masked() {
@@ -1550,7 +1550,7 @@ regen_world(){
 	done
 	cp "${WORLD}" "${tmp_world}"
 	cp "${ex_world}" "${WORLD}"
-	diff_ask "${WORLD}" "${tmp_world}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${WORLD}" "${tmp_world}"
 	rm "${ex_world}"
 	eend $? 2>/dev/null
 	echo -e "\n${green}Result${restore}:"
@@ -1761,6 +1761,8 @@ ${contrast}Common${restore}
 	-s,  --sort:                 Sort entries alphabetically, --use-sort, --keyword-uniq.
 	-y,  --yes:                  Auto answer (Yes).
 	-p,  --pretend:              Check only.
+	--no-backup:               Skip backup before operations.
+	--no-diff:                 Skip diff prompts, apply changes directly.
 	-h,  -h, -?, h, --help:      This help.
 ${contrast}\${USE}${restore}
 	-us, --use-sort:             Sort useflags. Remove doubles and preserve only last defined state (on/off).
@@ -1812,16 +1814,18 @@ eix_dep_keys="--use-invalid
 opts=" ${PORTCONF_DEFAULT_OPTS} ${@}"
 grep -q -e " --yes\>" -e " -y\>" <<< " ${opts}" && yes="1"
 grep -q -e " --pretend\>" -e " -p\>" <<< " ${opts}" && PRETEND="1"
-opts="$(sed -e 's| --yes\>||g;s| -y\>||g' -e 's| --pretend\>||g;s| -p\>||g' <<< " ${opts}")"
+grep -q -e " --no-backup\>" <<< " ${opts}" && NO_BACKUP="1"
+grep -q -e " --no-diff\>" <<< " ${opts}" && NO_DIFF="1"
+opts="$(sed -e 's| --yes\>||g;s| -y\>||g' -e 's| --pretend\>||g;s| -p\>||g' -e 's| --no-backup\>||g' -e 's| --no-diff\>||g' <<< " ${opts}")"
 if grep -q "${eix_dep_keys//\-/\\-}" <<< "${opts}";then
 	if grep -q -e " --regen-cache\>" -e " -rc\>" <<< " ${opts}";then
 		eix_check
-		opts="$(sed -e 's| --regen-cache\>||g;s| -rc\>||g' -e '/^[ \t]$/d' <<< " ${opts}")"
+		opts="$(sed -e 's| --regen-cache\>||g;s| -rc\>||g' -e 's| --no-backup\>||g' -e 's| --no-diff\>||g' -e '/^[ \t]$/d' <<< " ${opts}")"
 	else
 		eix_method
 	fi
 else
-	opts="$(sed -e 's| --regen-cache\>||g;s| -rc\>||g' -e '/^[ \t]$/d' <<< " ${opts}")"
+	opts="$(sed -e 's| --regen-cache\>||g;s| -rc\>||g' -e 's| --no-backup\>||g' -e 's| --no-diff\>||g' -e '/^[ \t]$/d' <<< " ${opts}")"
 fi
 [[ -z "${@}" || -z "${opts}" ]] && help_pc
 for OPT in ${opts};do
@@ -1829,28 +1833,28 @@ for OPT in ${opts};do
 	--backup | -b ) backup;;
 	--restore | -r ) etc_restore;;
 	--sort | -s )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		sort_use_file;
 		uniq_keywords;
 		sort_uniq_files;
 		sort_uniq_mask_use;;
 	--use-sort | -us )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		sort_use_file;;
 	--use-invalid | -ui )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		invalid_uses;
 		invalid_uses_make;
 		[[ -n "${eix_cache}" ]] && rm "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
 	--use-make | -um )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		use_makeconf;;
 	--stupid-use-profile | -sup )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		sort_uniq_mask_use;
 		check_use_masked;;
 	--use-full | -uf )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		sort_use_file;
 		sort_uniq_mask_use;
 		invalid_uses;
@@ -1859,13 +1863,13 @@ for OPT in ${opts};do
 		check_use_masked;
 		[[ -n "${eix_cache}" ]] && rm "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
 	--keyword-one | -ko )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		sort_keywords;;
 	--keyword-uniq | -ku )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		uniq_keywords;;
 	--trash | -t )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		not_found;
 		package_env_conf;
 		package_env;
@@ -1874,13 +1878,13 @@ for OPT in ${opts};do
 		backup_files;
 		[[ -n "${eix_cache}" ]] && rm "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
 	--stupid-mask | -sm )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		mask_trash;;
 	--stupid-unmask | -sum )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		stupid_unmask;;
 	--force-trash | -ft )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		not_found;
 		package_env_conf;
 		package_env;
@@ -1890,13 +1894,13 @@ for OPT in ${opts};do
 		backup_files;
 		[[ -n "${eix_cache}" ]] && rm "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
 	--rm-comments | -c )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		rm_comments;;
 	--rm-all-comments | -ac )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		rm_all_comments;;
 	--full | -f )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		sort_uniq_files;
 		not_found;
 		package_env_conf;
@@ -1915,10 +1919,10 @@ for OPT in ${opts};do
 		backup_files;
 		[[ -n "${eix_cache}" ]] && rm "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
 	--files-2-dirs | -f2d )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		f_to_d;;
 	--dirs-2-files | -d2f )
-		backup;
+		[[ -z "${NO_BACKUP}" ]] && backup;
 		d_to_f;;
 	--all-profiles-use | -apu ) all_use_all_profiles;;
 	--profiles-use | -pu ) profile_use;;
