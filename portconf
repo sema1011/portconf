@@ -505,6 +505,8 @@ sort_use_file(){
 ############################################################################
 ################ stupid_keyword ############################################
 stupid_keywords(){
+	local tmp_out="${TMPDIR_PORTCONF}/stupid_kw_out"
+	cp "${2}" "${tmp_out}" 2>/dev/null
 	unset ACCEPT_KEYWORDS
 	local ACCEPT_KEYWORDS
 	ACCEPT_KEYWORDS="$(eix --print ACCEPT_KEYWORDS | tr ' ' $'\n' | sort -u | tr $'\n' ' ')"
@@ -548,11 +550,13 @@ stupid_keywords(){
 					string="$(grep "^${satom} ${lkeys}.*$" "${1}")"
 					fixed_string=""
 				fi
-				sed -e "s|^${string//\*/\\*}$|${fixed_string}|"  -e '/^$/d' -i "${2}" || { echo "fail 525"; exit 1; }
+				sed -e "s|^${string//\*/\\*}$|${fixed_string}|"  -e '/^$/d' -i "${tmp_out}" || { echo "fail 525"; exit 1; }
 			fi
 		done < "${1}"
 		unset reported
 	done
+	cp "${tmp_out}" "${2}"
+	rm -f "${tmp_out}"
 }
 ############################################################################
 ################ sort_keys #################################################
