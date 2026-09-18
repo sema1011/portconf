@@ -114,13 +114,13 @@ PORTDIR="${PORTDIR:-/usr/portage}"
 ############################################################################
 ################ sed_escape ##################################################
 sed_escape(){
-	# Escape sed BRE metacharacters: & \ / and regex metacharacters
+	# Escape sed BRE metacharacters: & \ and regex metacharacters
 	# Note: * must be escaped as [*] because \* in BRE means "0+ previous"
 	# { } | are NOT BRE metacharacters (only with \ prefix in BRE)
+	# / is NOT escaped because sed uses | as delimiter throughout
 	local s="$1"
 	s="${s//\\/\\\\}"
 	s="${s//&/\\&}"
-	s="${s//\//\\/}"
 	s="${s//$'\n'/\\n}"
 	s="${s//\[/\\[}"
 	s="${s//\]/\\]}"
@@ -540,7 +540,7 @@ stupid_keywords(){
 					for pkey in ${parent_keys};do
 						if [[ "${key}" == "${KEY}" || ${key} == "${pkey}" ]];then
 							echo -e "Twice defined keyword ${red}${key}${restore}:\t${green}${satom}${restore}"
-							out_keys="$(grep -v "$(printf ${key})"  <<< "${out_keys}")"
+							out_keys="$(grep -vF "${key}" <<< "${out_keys}")"
 						fi
 					done
 				done
@@ -772,7 +772,8 @@ package_env(){
 env_not_installed(){
 	echo -e "${underline}Looking not installed in${restore} ${contrast}${PORT_ETC}/env${restore}"
 	for x in "env" "env.d";do
-		files="$(find ${PORT_ETC}/${x}/ -mindepth 2 -maxdepth 2 -type f \! -name '*~' \! -name '*.bak' 2>/dev/null| cut -d\/ -f5-)"
+		[[ -d "${PORT_ETC}/${x}" ]] || continue
+		files="$(find "${PORT_ETC}/${x}/" -mindepth 2 -maxdepth 2 -type f \! -name '*~' \! -name '*.bak' 2>/dev/null| cut -d/ -f5-)"
 		[[ -n "${IGNORE}" ]] && files="$(grep -v "${IGNORE}" <<< "${files}")"
 		dirs="$(find ${PORT_ETC}/${x}/ -type d 2>/dev/null)"
 		[[ -n "${IGNORE}" ]] && dirs="$(grep -v "${IGNORE}" <<< "${dirs}")"
