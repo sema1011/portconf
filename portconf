@@ -176,12 +176,29 @@ eix_check(){
 		return 0
 	fi
 	if [[ -n "$(eix --version 2>/dev/null)" ]];then
-		# Use system eix cache instead of temp (temp often fails to write)
+		# Use system eix cache
 		eix_cache="$(eix --print CACHEFILE 2>/dev/null)"
 		if [[ -z "${eix_cache}" || ! -f "${eix_cache}" ]];then
 			eix_cache="/var/cache/eix/portage.eix"
 		fi
-		export EIX_CACHEFILE="${eix_cache}"
+		if [[ -f "${eix_cache}" ]];then
+			export EIX_CACHEFILE="${eix_cache}"
+		else
+			# Cache doesn't exist — try to create it, or skip
+			if [[ "${UID}" -eq 0 ]];then
+				echo -e "${underline}Creating eix cache...${restore}"
+				eix-update 2>/dev/null
+				if [[ -f "${eix_cache}" ]];then
+					export EIX_CACHEFILE="${eix_cache}"
+				else
+					eix_cache=""
+					echo -e "${red}Failed to create eix cache, skipping eix-dependent checks${restore}"
+				fi
+			else
+				eix_cache=""
+				echo -e "${red}eix cache not found, run as root or run 'eix-update'${restore}"
+			fi
+		fi
 		EIX_CACHE_CREATED="1"
 	else
 		echo -e "${green}app-portage/eix${restore} ${red}not installed!${restore}"
@@ -1883,7 +1900,7 @@ for OPT in ${opts};do
 		[[ -z "${NO_BACKUP}" ]] && backup;
 		invalid_uses;
 		invalid_uses_make;
-		[[ -n "${eix_cache}" ]] && rm "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
+		[[ -n "${eix_cache}" ]] && rm -f "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
 	--use-make | -um )
 		[[ -z "${NO_BACKUP}" ]] && backup;
 		use_makeconf;;
@@ -1899,7 +1916,7 @@ for OPT in ${opts};do
 		invalid_uses_make;
 		use_makeconf;
 		check_use_masked;
-		[[ -n "${eix_cache}" ]] && rm "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
+		[[ -n "${eix_cache}" ]] && rm -f "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
 	--keyword-one | -ko )
 		[[ -z "${NO_BACKUP}" ]] && backup;
 		sort_keywords;;
@@ -1914,7 +1931,7 @@ for OPT in ${opts};do
 		env_not_installed;
 		empty_files;
 		backup_files;
-		[[ -n "${eix_cache}" ]] && rm "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
+		[[ -n "${eix_cache}" ]] && rm -f "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
 	--stupid-mask | -sm )
 		[[ -z "${NO_BACKUP}" ]] && backup;
 		mask_trash;;
@@ -1930,7 +1947,7 @@ for OPT in ${opts};do
 		force_not_installed;
 		empty_files;
 		backup_files;
-		[[ -n "${eix_cache}" ]] && rm "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
+		[[ -n "${eix_cache}" ]] && rm -f "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
 	--rm-comments | -c )
 		[[ -z "${NO_BACKUP}" ]] && backup;
 		rm_comments;;
@@ -1955,7 +1972,7 @@ for OPT in ${opts};do
 		stupid_unmask;
 		empty_files;
 		backup_files;
-		[[ -n "${eix_cache}" ]] && rm "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
+		[[ -n "${eix_cache}" ]] && rm -f "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
 	--files-2-dirs | -f2d )
 		[[ -z "${NO_BACKUP}" ]] && backup;
 		f_to_d;;
