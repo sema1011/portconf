@@ -539,15 +539,16 @@ stupid_keywords(){
 			out_keys="$(tr $'\n' ' ' <<< "${out_keys}" | sed 's/  */ /g; s/^ //; s/ $//')"
 			if [[ "${lkeys}" != "${out_keys}" ]];then
 				if [[ -n "${out_keys}" ]];then
+					local esc_satom="$(sed_escape "${satom}")"
 					if [[ -n "${comment}" ]];then
-						string="$(grep "^${satom} ${lkeys} .*#${comment}$" "${1}")"
+						string="$(grep "^${esc_satom} ${lkeys} .*#${comment}$" "${1}")"
 						fixed_string="${satom} ${out_keys} #${comment}"
 					else
-						string="$(grep "^${satom} ${lkeys}$" "${1}")"
+						string="$(grep "^${esc_satom} ${lkeys}$" "${1}")"
 						fixed_string="${satom} ${out_keys}"
 					fi
 				else
-					string="$(grep "^${satom} ${lkeys}.*$" "${1}")"
+					string="$(grep "^${esc_satom} ${lkeys}.*$" "${1}")"
 					fixed_string=""
 				fi
 				sed -e "s|^${string//\*/\\*}$|${fixed_string}|"  -e '/^$/d' -i "${tmp_out}" || { echo "fail 525"; exit 1; }
