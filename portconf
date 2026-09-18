@@ -170,6 +170,21 @@ prompt_yesno(){
 }
 ############################################################################
 ############################################################################
+################ rm_comments_check #########################################
+# Check and remove comments from package files.
+# $1 = mode: "leading" (only leading #) or "all" (all inline #)
+rm_comments_check(){
+	local tmp_file="${TMPDIR_PORTCONF}/tmp_file"
+	cp "${file}" "${tmp_file}"
+	if [[ "${RC_MODE}" == "all" ]];then
+		sed -e "s|#.*||g" -e 's/[ \t]*$//' -e '/^$/d' -i "${tmp_file}"
+	else
+		sed -e "s|^#.*||g" -e '/^$/d' -i "${tmp_file}"
+	fi
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
+}
+############################################################################
+############################################################################
 ################ timestamp #################################################
 timestamp(){
 	stat -c %Y "$@" 2>/dev/null | sort | tail -n1
@@ -467,24 +482,12 @@ file_or_dir(){
 ############################################################################
 ################ rm_comments ###############################################
 rm_comments(){
-	no_newline(){
-		tmp_file="${TMPDIR_PORTCONF}/tmp_file"
-		cp "${file}" "${tmp_file}"
-		sed -e "s|^#.*||g" -e '/^$/d' -i "${tmp_file}"
-		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
-	}
-	file_or_dir "package.*" "Checking comments:" "no_newline" || return 1
+	file_or_dir "package.*" "Checking comments:" "RC_MODE=leading" "rm_comments_check" || return 1
 }
 ############################################################################
 ################ rm_all_comments ###########################################
 rm_all_comments(){
-	no_newline_inline(){
-		tmp_file="${TMPDIR_PORTCONF}/tmp_file"
-		cp "${file}" "${tmp_file}"
-		sed -e "s|#.*||g" -e 's/[ \t]*$//' -e '/^$/d' -i "${tmp_file}"
-		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
-	}
-	file_or_dir "package.*" "Checking comments:" "no_newline_inline"  || return 1
+	file_or_dir "package.*" "Checking comments:" "RC_MODE=all" "rm_comments_check" || return 1
 }
 ############################################################################
 ################ sort_uses #################################################
