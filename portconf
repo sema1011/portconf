@@ -330,25 +330,23 @@ diff_ask(){
 	my_diff="$(diff "${1}" "${2}" | grep --color=never "[[:digit:]][a-z][[:digit:]]")"
 	if [[ -n "${my_diff}" ]];then
 		while IFS= read -r subj;do
-			old_num="$(tr ',' ' ' <<< "${subj%[a-z]*}")"
-			[[ "$(wc -w <<< "${old_num}")" == "2" ]] && old_num="$(seq "${old_num}")"
-			new_num="$(tr ',' ' ' <<< "${subj#*[a-z]}")"
-			[[ "$(wc -w <<< "${new_num}")" == "2" ]] && new_num="$(seq "${new_num}")"
+			old_nums="$(tr ',' $'\n' <<< "${subj%[a-z]*}" | tr ' ' $'\n' | sed '/^$/d')"
+			new_nums="$(tr ',' $'\n' <<< "${subj#*[a-z]}" | tr ' ' $'\n' | sed '/^$/d')"
 
 			action="$(grep -o "[a-z]" <<< "${subj}")"
- 			if [[ "${action}" == "a" ]];then
-				for num in ${new_num};do
+  			if [[ "${action}" == "a" ]];then
+				for num in ${new_nums};do
 					[[ "${num}" != "0" ]] && full_diff+="${num}^#+#${green}$(sed -n "${num}p" "${2}")${restore}#"$'\n'
 				done
 			elif [[ "${action}" == "d" ]];then
-				for num in ${old_num};do
+				for num in ${old_nums};do
 					[[ "${num}" != "0" ]] && full_diff+="${num}^#-#${red}$(sed -n "${num}p" "${1}")${restore}#"$'\n'
 				done
 			elif [[ "${action}" == "c" ]];then
-				for num in ${old_num};do
+				for num in ${old_nums};do
 					[[ "${num}" != "0" ]] && full_diff+="${num}^#-#${red}$(sed -n "${num}p" "${1}")${restore}#"$'\n'
 				done
-				for num in ${new_num};do
+				for num in ${new_nums};do
 					[[ "${num}" != "0" ]] && full_diff+="${num}^#+#${green}$(sed -n "${num}p" "${2}")${restore}#"$'\n'
 				done
 			fi
@@ -1892,9 +1890,9 @@ grep -q -e " --pretend\>" -e " -p\>" -e " --dry-run\>" -e " -n\>" <<< " ${opts}"
 grep -q -e " --no-backup\>" <<< " ${opts}" && NO_BACKUP="1"
 grep -q -e " --no-diff\>" <<< " ${opts}" && NO_DIFF="1"
 opts="$(sed -e 's| --yes\>||g;s| -y\>||g' -e 's| --pretend\>||g;s| -p\>||g' -e 's| --dry-run\>||g;s| -n\>||g' -e 's| --no-backup\>||g' -e 's| --no-diff\>||g' <<< " ${opts}")"
-if grep -q -e "\-\-use-invalid\>" -e "\-ui\>" -e "\-\-use-make\>" -e "\-um\>" \
-            -e "\-\-use-full\>" -e "\-uf\>" -e "\-\-trash\>" -e "\-t\>" \
-            -e "\-\-force-trash\>" -e "\-ft\>" -e "\-\-full\>" -e "\-f\>" <<< "${opts}";then
+if grep -q -e "--use-invalid\>" -e "-ui\>" -e "--use-make\>" -e "-um\>" \
+            -e "--use-full\>" -e "-uf\>" -e "--trash\>" -e "-t\>" \
+            -e "--force-trash\>" -e "-ft\>" -e "--full\>" -e "-f\>" <<< "${opts}";then
 	if grep -q -e " --regen-cache\>" -e " -rc\>" <<< " ${opts}";then
 		eix_check
 		opts="$(sed -e 's| --regen-cache\>||g;s| -rc\>||g' -e 's| --no-backup\>||g' -e 's| --no-diff\>||g' -e '/^[ \t]$/d' <<< " ${opts}")"
