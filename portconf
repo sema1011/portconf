@@ -507,8 +507,9 @@ sort_use_file(){
 stupid_keywords(){
 	unset ACCEPT_KEYWORDS
 	local ACCEPT_KEYWORDS
-	ACCEPT_KEYWORDS="$(eix --print ACCEPT_KEYWORDS)"
+	ACCEPT_KEYWORDS="$(eix --print ACCEPT_KEYWORDS | tr ' ' $'\n' | sort -u | tr $'\n' ' ')"
 	for KEY in ${ACCEPT_KEYWORDS};do
+		declare -A reported
 		while read satom lkeys;do
 			comment="$(cut -d\# -f2- <<< "${lkeys}")"
 			lkeys="${lkeys%%#*}"
@@ -523,7 +524,10 @@ stupid_keywords(){
 				for key in ${lkeys};do
 					for pkey in ${parent_keys};do
 						if [[ "${key}" == "${KEY}" || ${key} == "${pkey}" ]];then
-							echo -e "Twice defined keyword ${red}${key}${restore}:\t${green}${satom}${restore}"
+							if [[ -z "${reported[${satom}]:-}" ]];then
+								echo -e "Twice defined keyword ${red}${key}${restore}:\t${green}${satom}${restore}"
+								reported["${satom}"]=1
+							fi
 							out_keys="$(grep -vF "${key}" <<< "${out_keys}")"
 						fi
 					done
@@ -547,6 +551,7 @@ stupid_keywords(){
 				sed -e "s|^${string//\*/\\*}$|${fixed_string}|"  -e '/^$/d' -i "${2}" || { echo "fail 525"; exit 1; }
 			fi
 		done < "${1}"
+		unset reported
 	done
 }
 ############################################################################
