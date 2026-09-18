@@ -78,31 +78,33 @@ profile_uses="$(sort_passed_uses "${pre_profile}")"
 PROFILE="$(tr "[:space:]" $'\n' <<< "${profile_uses}")"
 ############################################################################
 ################ all_use_all_profiles ######################################
-	all_use_all_profiles(){
+# Display USE flags for profiles.
+# $1 = mode: "all" (list all) or "select" (interactive select), or empty for all
+all_use_all_profiles(){
+	local mode="${1:-all}"
+	local target profile_uses USEs
+	if [[ "${mode}" == "select" ]];then
+		if [[ ! -t 0 ]];then
+			mode="all"
+		else
+			PS3=$(echo -e "${contrast}Choose number:${restore} ")
+			select target in $(eselect --brief profile list);do
+				profile_uses="$(profile "${PORTDIR}/profiles/${target}")"
+				USEs="$(sort_passed_uses "${profile_uses}")"
+				# shellcheck disable=SC1012
+				echo -e "\n${green}${target}${restore}: "${USEs} | fold -s -w "${COLS}"
+				unset USEs
+				break
+			done
+			return 0
+		fi
+	fi
 	for target in $(eselect --brief profile list);do
 		profile_uses="$(profile "${PORTDIR}/profiles/${target}")"
 		USEs="$(sort_passed_uses "${profile_uses}")"
 		# shellcheck disable=SC1012
 		echo -e "\n${green}${target}${restore}: "${USEs} | fold -s -w "${COLS}"
 		unset USEs
-	done
-}
-############################################################################
-################ profile_use ###############################################
-profile_use(){
-	# Non-interactive fallback: show all profiles
-	if [[ ! -t 0 ]];then
-		all_use_all_profiles
-		return 0
-	fi
-	PS3=$(echo -e "${contrast}Choose number:${restore} ")
-	select target in $(eselect --brief profile list);do
-		profile_uses="$(profile "${PORTDIR}/profiles/${target}")"
-		USEs="$(sort_passed_uses "${profile_uses}")"
-		# shellcheck disable=SC1012
-		echo -e "\n${green}${target}${restore}: "${USEs} | fold -s -w "${COLS}"
-		unset USEs
-		break
 	done
 }
 ############################################################################
@@ -2050,7 +2052,7 @@ for OPT in ${opts};do
 		[[ -z "${NO_BACKUP}" ]] && backup;
 		convert_package_files d2f;;
 	--all-profiles-use | -apu ) all_use_all_profiles;;
-	--profiles-use | -pu ) profile_use;;
+	--profiles-use | -pu ) all_use_all_profiles select;;
 	--current-profile-use | -cpu ) current_profile;;
 	--world-backup | -wb ) world_backup;;
 	--world-restore | -wr ) world_restore;;
