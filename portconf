@@ -606,8 +606,8 @@ installed(){
 	if [[ -n "${installed}" ]];then
 		installed_vers="$(awk -F \: '{print $1}' <<< "${installed}")"
 		installed_min_ver="$(head -n1 <<< "${installed_vers}")"
-		installed_max_ver="$(tail -n1 <<< "`grep -v 9999 <<< "${installed_vers}"`")"
-		installed_live_ver="$(tail -n1 <<< "`grep 9999 <<< "${installed_vers}"`")"
+		installed_max_ver="$(tail -n1 <<< "$(grep -v 9999 <<< "${installed_vers}")")"
+		installed_live_ver="$(tail -n1 <<< "$(grep 9999 <<< "${installed_vers}")")"
 		installed_slots="$(awk -F \: '{print $2}' <<< "${installed}")"
 		#::repo check
 		full_vers="$(qlist -ICev "${category}/${pn}" | sed "s|${category}/${pn}-||g")"
@@ -642,7 +642,7 @@ not_if(){
 
 				[[ "${category}" == "(null)" || "${pn}" == "(null)" ]] && continue
 
-				if [[ -n "${rev}" ]] && [[ -z "${slot}" ]] && `grep -q \: <<< "${rev}"`;then
+				if [[ -n "${rev}" ]] && [[ -z "${slot}" ]] && grep -q \: <<< "${rev}";then
 					slot="${rev}"
 					unset rev
 				fi
@@ -669,7 +669,7 @@ force_not_installed(){
 		if [[ -s "${package}" && -n "$(grep -v "^#" < "${package}")" ]];then
 			tmp_package="$(mktemp)"
 			cp "${package}" "${tmp_package}"
-			if ! `grep -q "\.mask" <<< "${package}"`;then
+			if ! grep -q "\.mask" <<< "${package}";then
 				not_if;
 				eend $? 2>/dev/null
 			fi
@@ -758,7 +758,7 @@ env_not_installed(){
 			while read category pn ver rev slot;do
 				[[ "${category}" == "(null)" || "${pn}" == "(null)" ]] && continue
 				[[ "${ver}" == "(null)" ]] && ver="${ver//(null)/}"
-				if [[ -n "${rev}" ]] && ! `grep -q \: <<< "${rev}"`;then
+				if [[ -n "${rev}" ]] && ! grep -q \: <<< "${rev}";then
 					full_ver="${ver}-${rev}"
 				else
 					full_ver="${ver}"
@@ -1070,7 +1070,7 @@ not_found(){
 		if [[ -n "${line}" && -f "${file}" ]];then
 			tmp_file="$(mktemp)"
 			cp "${file}" "${tmp_file}"
-			[[ -n "${line}" ]] && sed -e "s|`echo $line`$||" -e 's|[ \t]| |' -e '/^[ \t]$/d' -e '/^$/d' -i ${tmp_file}
+			[[ -n "${line}" ]] && sed -e "s|$(echo "$line")$||" -e 's|[ \t]| |' -e '/^[ \t]$/d' -e '/^$/d' -i "${tmp_file}"
 			diff_ask "${file}" "${tmp_file}"
 		elif [[ -n "${line}" && -d "${file}" ]];then
 			for package in `grep -RH "${line//'*'/\*}" "${file}"/ | awk -F \: '{print $1}'`;do
