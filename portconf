@@ -1326,6 +1326,17 @@ all_mask_trash(){
 	file_or_dir "package.unmask" "Preparing atoms in" "pre_unmask_trash" || return 1
 }
 mask_trash(){
+	# Check eix cache exists before running eix queries
+	if [[ -n "$(eix --version 2>/dev/null)" ]];then
+		local _eix_cache
+		_eix_cache="$(eix --print CACHEFILE 2>/dev/null)"
+		[[ -z "${_eix_cache}" ]] && _eix_cache="/var/cache/eix/portage.eix"
+		if [[ ! -f "${_eix_cache}" ]];then
+			echo -e "${red}eix cache not found (${_eix_cache})${restore}"
+			echo -e "Run ${contrast}eix-update${restore} as root or use ${contrast}-rc${restore} flag"
+			return 1
+		fi
+	fi
 	slot_output(){
 		if [[ "${mslot}" != "(null)" ]];then
 			echo -e "${red}Incorrect${restore}: ${mcategory}/${mpn}:${mslot}"
