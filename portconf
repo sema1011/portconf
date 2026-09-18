@@ -371,14 +371,14 @@ sort_uniq_files(){
 		tmp_sort="$(mktemp)"
 		echo -e "${underline}Sorting${restore} ${contrast}${package#${PORT_ETC}/}${restore}"
 
-		all_atoms="$(awk '{print $1}' "${package}" | grep -v "^#"| sort -u)"
+		all_atoms="$(awk '!/^#/ {print $1}' "${package}"| sort -u)"
 		while read atom;do
 			opts="$(grep "^${atom//\*/\\*} " "${package}" | uniq | cut -d" " -f2-)"
 			echo "${atom} ${opts//$'\n'/ }" >> "${tmp_sort}"
 		done <<< "${all_atoms}"
 
 		sed -e '/^$/d' -e 's/[ \t]*$//' -i ${tmp_sort}
-		sort -u "${tmp_sort}" -o "${tmp_sort}" 2>/dev/null
+		sort -u "${tmp_sort}" 2>/dev/null
 		diff_ask "${package}" "${tmp_sort}"
 		eend $? 2>/dev/null
 	done
@@ -451,7 +451,7 @@ rm_all_comments(){
 sort_uses(){
 	tmp_file="$(mktemp)"
 	striped="$(mktemp)"
-	PACKAGES="$(awk '{print $1}' ${file} | grep -v '^#.*' | uniq)"
+	PACKAGES="$(awk '!/^#/ {print $1}' ${file} | uniq)"
 	for atom in ${PACKAGES};do
 		comment="$(grep "${atom}[[:space:]].*#" "${file}" | cut -d\# -f2-)"
 		for option in \
@@ -474,7 +474,7 @@ sort_uses(){
 		unset atom opt
 	done < "${tmp_file}"
 	sed -e 's/[ \t]*$//' -e '/^$/d' -e 's|  | |g' -e "s| - | |g" -i "${striped}" 2>/dev/null
-	sort -u "${striped}" -o "${striped}" 2>/dev/null
+	sort -u "${striped}" 2>/dev/null
 	rm "${tmp_file}" 2>/dev/null
 	diff_ask "${file}" "${striped}"
 	eend $? 2>/dev/null
@@ -535,7 +535,7 @@ stupid_keywords(){
 sort_keys(){
 	tmp_file="$(mktemp)"
 	striped="$(mktemp)"
-	PACKAGES="$(awk '{print $1}' ${file} | grep -v '^#.*' | uniq)"
+	PACKAGES="$(awk '!/^#/ {print $1}' ${file} | uniq)"
 	for atom in ${PACKAGES};do
 		comment="$(grep "${atom}[[:space:]].*#" "${file}" | cut -d\# -f2-)"
 		for option in \
@@ -560,7 +560,7 @@ sort_keys(){
 	done < "${tmp_file}"
 
 	sed -e 's/[ \t]*$//' -e '/^$/d' -e 's|  | |g' -e "s| - | |g" -i "${striped}" 2>/dev/null
-	sort -u "${striped}" -o "${striped}" 2>/dev/null
+	sort -u "${striped}" 2>/dev/null
 	cp "${striped}" "${tmp_file}"
 	stupid_keywords "${tmp_file}" "${striped}"
 	rm "${tmp_file}" 2>/dev/null
@@ -585,7 +585,7 @@ sort_keywords(){
 				echo "${atom} ${keyword}" >> "${tmp_file}"
 			fi
 		done <<< "${atoms}"
-		sort -u "${tmp_file}" -o "${tmp_file}" 2>/dev/null
+		sort -u "${tmp_file}" 2>/dev/null
 		cp "${tmp_file}" "${striped}"
 		stupid_keywords "${striped}" "${tmp_file}"
 		rm "${striped}"
@@ -1247,12 +1247,12 @@ package_envs(){
 ################ mask/unmask trash #########################################
 all_mask_trash(){
 	pre_mask_trash(){
-		masked="$(awk '{print $1}' ${file} | grep -v '^#.*')"
+		masked="$(awk '!/^#/ {print $1}' ${file})"
 		MASKED+="$(package_envs "${masked}")"$'\n'
 	}
 	file_or_dir "package.mask" "Preparing atoms in" "pre_mask_trash" || return 1
 	pre_unmask_trash(){
-		unmasked="$(awk '{print $1}' ${file} | grep -v '^#.*')"
+		unmasked="$(awk '!/^#/ {print $1}' ${file})"
 		UNMASKED+="$(package_envs "${unmasked}")"$'\n'
 	}
 	file_or_dir "package.unmask" "Preparing atoms in" "pre_unmask_trash" || return 1
