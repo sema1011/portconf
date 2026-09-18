@@ -264,7 +264,3 @@ portconf --restore
 ## License
 
 Distributed under the terms of the GNU General Public License v3 or later.
-
-## Credits
-
-Original script by [megabaks](https://github.com/megabaks/portconf) (2012–2014).
