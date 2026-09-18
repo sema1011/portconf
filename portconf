@@ -523,7 +523,7 @@ stupid_keywords(){
 			if [[ "${satom}" != "${pcategory}/*" && "${satom}" != "*/*" ]];then
 				for key in ${lkeys};do
 					for pkey in ${parent_keys};do
-						if [[ "${key}" == "${KEY}" || ${key} == "${pkey}" ]];then
+						if [[ "${key}" == "${KEY}" || "${pkey}" == "${KEY}" ]];then
 							if [[ -z "${reported[${satom}]:-}" ]];then
 								echo -e "Twice defined keyword ${red}${key}${restore}:\t${green}${satom}${restore}"
 								reported["${satom}"]=1
