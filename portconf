@@ -173,18 +173,23 @@ rm_repo_fix(){
 ################ eix check #################################################
 eix_check(){
 	if [[ -n "$(eix --version 2>/dev/null)" ]];then
-		echo -e "${underline}Creating new temporary cache.${restore}"
-		repo_fix
-		eix_cache="${TMPDIR_PORTCONF}/eix_cache"
-		chown portage:portage "${eix_cache}" 2>/dev/null
-		export EIX_CACHEFILE="${eix_cache}"
-		export OVERLAY_CACHE_METHOD="parse|ebuild*"
-		eix-update
+		if [[ "${UID}" -eq 0 ]];then
+			echo -e "${underline}Creating new temporary cache.${restore}"
+			repo_fix
+			eix_cache="${TMPDIR_PORTCONF}/eix_cache"
+			chown portage:portage "${eix_cache}" 2>/dev/null
+			export EIX_CACHEFILE="${eix_cache}"
+			export OVERLAY_CACHE_METHOD="parse|ebuild*"
+			eix-update
+			rm_repo_fix
+		else
+			echo -e "${red}eix_check requires root to write cache.${restore}"
+			eix_cache=""
+		fi
 	else
 		echo -e "${green}app-portage/eix${restore} ${red}not installed!${restore}"
 		exit 1
 	fi
-	rm_repo_fix
 }
 ############################################################################
 ################ eix check method ##########################################
