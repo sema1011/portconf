@@ -176,21 +176,13 @@ eix_check(){
 		return 0
 	fi
 	if [[ -n "$(eix --version 2>/dev/null)" ]];then
-		if [[ "${UID}" -eq 0 ]];then
-			echo -e "${underline}Creating new temporary cache.${restore}"
-			repo_fix
-			eix_cache="${TMPDIR_PORTCONF}/eix_cache"
-			chown portage:portage "${eix_cache}" 2>/dev/null
-			export EIX_CACHEFILE="${eix_cache}"
-			export OVERLAY_CACHE_METHOD="parse|ebuild*"
-			eix-update
-			rm_repo_fix
-			EIX_CACHE_CREATED="1"
-		else
-			echo -e "${red}eix_check requires root to write cache.${restore}"
-			eix_cache=""
-			EIX_CACHE_CREATED="1"
+		# Use system eix cache instead of temp (temp often fails to write)
+		eix_cache="$(eix --print CACHEFILE 2>/dev/null)"
+		if [[ -z "${eix_cache}" || ! -f "${eix_cache}" ]];then
+			eix_cache="/var/cache/eix/portage.eix"
 		fi
+		export EIX_CACHEFILE="${eix_cache}"
+		EIX_CACHE_CREATED="1"
 	else
 		echo -e "${green}app-portage/eix${restore} ${red}not installed!${restore}"
 		exit 1
