@@ -734,7 +734,8 @@ force_not_installed(){
 ############################################################################
 ################ package.env conf ##########################################
 package_env_conf(){
-	all_confs="$(find ${PORT_ETC}/env/ -maxdepth 1 -type f)"
+	[[ -d "${PORT_ETC}/env" ]] || return 0
+	all_confs="$(find "${PORT_ETC}/env/" -maxdepth 1 -type f)"
 	all_confs="${all_confs//${PORT_ETC////\/}\/env\//}"
 	check_env_conf(){
 		atoms="$(sed 's/^[ \t]*//;s/[ \t]*$//;/^#/d;/^$/d;' < "${file}" | awk '{print $1}')"
