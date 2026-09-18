@@ -154,6 +154,22 @@ sed_escape(){
 TMPDIR_PORTCONF="$(mktemp -d)"
 ############################################################################
 ############################################################################
+################ prompt_yesno ##############################################
+# Prompt user with Yes/No question. Returns 0 for yes (or empty=accept), 1 for no.
+# Usage: if prompt_yesno "Question?"; then ...; fi
+prompt_yesno(){
+	echo -ne "${1} [${green}Yes${restore}/${red}No${restore}] "
+	while IFS= read -r x;do
+		case ${x} in
+			Yes | YES | yes | Y | y | "" ) return 0;;
+			No | NO | no | N | n ) return 1;;
+			* ) echo -ne "Sorry, response '${x}' not understood. [${green}Yes${restore}/${red}No${restore}] "
+				continue;;
+		esac
+	done
+}
+############################################################################
+############################################################################
 ################ timestamp #################################################
 timestamp(){
 	stat -c %Y "$@" 2>/dev/null | sort | tail -n1
@@ -202,18 +218,10 @@ eix_method(){
 		if [[ "$(eix --print OVERLAY_CACHE_METHOD)" != "parse|ebuild*" ]];then
 			[[ -n "${yes}" ]] && eix_check
 			echo -ne "\n${red}!default 'OVERLAY_CACHE_METHOD'${restore}${contrast}
-Create temporary cache?${restore} [${green}Yes${restore}/${red}No${restore}] ";
-			while IFS= read -r x;do
-				case ${x} in
-					Yes | YES | yes | Y | y | "" )
-						eix_check
-						break;;
-					No | NO | no | N | n )
-						break;;
-					* ) echo -ne "Sorry, response '${x}' not understood. [${green}Yes${restore}/${red}No${restore}] "
-						continue;;
-				esac
-			done
+Create temporary cache?${restore} "
+			if prompt_yesno "";then
+				eix_check
+			fi
 		fi
 	else
 		echo -e "${green}app-portage/eix${restore} ${red}not installed!${restore}"
@@ -359,27 +367,20 @@ diff_ask(){
 		echo -e "${full_diff%\\n}" | column -s \^ -t
 		echo "###############################################"
 		if [[ -z "${yes}" && -z "${PRETEND}" ]];then
-			echo -ne "${contrast}Apply changes?${restore} [${green}Yes${restore}/${red}No${restore}] ";
-			while IFS= read -r x;do
-				case ${x} in
-					Yes | YES | yes | Y | y | "" )
-						if [[ "${UID}" == "0" ]];then
-							mv "${2}" "${1}" 2>/dev/null
-							chmod 0644 "${1}"
-						else
-							echo -e "you are ${red}!root${restore} ---> go away!"
-							exit 1
-						fi
-						unset full_diff
-						return 0;;
-					No | NO | no | N | n )
-						unset full_diff
-						rm "${2}" 2>/dev/null
-						return 0;;
-					* ) echo -ne "Sorry, response '${x}' not understood. [${green}Yes${restore}/${red}No${restore}] "
-						continue;;
-				esac
-			done
+			if prompt_yesno "${contrast}Apply changes?${restore} ";then
+				if [[ "${UID}" == "0" ]];then
+					mv "${2}" "${1}" 2>/dev/null
+					chmod 0644 "${1}"
+				else
+					echo -e "you are ${red}!root${restore} ---> go away!"
+					unset full_diff
+					return 0
+				fi
+			else
+				rm "${2}" 2>/dev/null
+			fi
+			unset full_diff
+			return 0
 		elif [[ -n "${yes}" && -z "${PRETEND}" ]];then
 			mv "${2}" "${1}" 2>/dev/null
 			chmod 0644 "${1}"
@@ -398,18 +399,9 @@ diff_ask(){
 ################ remove_ask ################################################
 remove_ask(){
 	if [[ -z "${yes}" && -z "${PRETEND}" ]];then
-		echo -ne "${contrast}Remove${restore} ${green}${1}${restore}${contrast}?${restore} [${green}Yes${restore}/${red}No${restore}] "
-		while IFS= read -r x;do
-			case ${x} in
-				Yes | YES | yes | Y | y | "" )
-					rm -rf "${1}" 2>/dev/null
-					break;;
-				No | NO | no | N | n )
-					break;;
-				* ) echo -ne "Sorry, response '${x}' not understood. [${green}Yes${restore}/${red}No${restore}] "
-					continue;;
-			esac
-		done
+		if prompt_yesno "${contrast}Remove${restore} ${green}${1}${restore}${contrast}?${restore} ";then
+			rm -rf "${1}" 2>/dev/null
+		fi
 	elif [[ -n "${yes}" && -z "${PRETEND}" ]];then
 		echo -e "${contrast}Removing${restore} ${green}${1}${restore}"
 		rm -rf "${1}" 2>/dev/null
