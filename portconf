@@ -488,7 +488,7 @@ sort_uses(){
 		comment="$(grep "${atom}[[:space:]].*#" "${file}" | cut -d\# -f2-)"
 		for option in \
 		$(grep "^${atom//\*/\\*}[[:space:]]" "${file}" | sed -e "s|${atom//\*/\\*} ||" -e "s|#.*${comment}||" | tr "[:space:]" $'\n' | uniq | tr $'\n' " ");do
-			atom_opts+="${option}"
+			atom_opts+=" ${option}"
 		done
 		uses="$(sort_passed_uses "${atom_opts}")"
 		uses="$(sed -e "s|^- | |g" -e "s| -- ||g" -e "s| - | |g" <<< ${uses})"
@@ -572,7 +572,7 @@ sort_keys(){
 		comment="$(grep "${atom}[[:space:]].*#" "${file}" | cut -d\# -f2-)"
 		for option in \
 		$(grep "^$(sed_escape "${atom//\*/\\*}")[[:space:]]" "${file}" | sed -e "s|$(sed_escape "${atom//\*/\\*}") ||" -e "s|#.*$(sed_escape "${comment}")||" | tr "[:space:]" $'\n' | uniq | tr $'\n' " ");do
-			atom_opts+="${option}"
+			atom_opts+=" ${option}"
 		done
 		keys="$(sort_passed_uses "${atom_opts}")"
 		keys="$(sed -e "s|^- | |g" -e "s| -- ||g" -e "s| - | |g" <<< ${keys})"
