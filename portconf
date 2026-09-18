@@ -251,7 +251,7 @@ restore(){
 	echo -e "${contrast}Available backups${restore}:"
 	select answer in ${tarballs};do
 		echo -e "Rolling back ${3} to the state ${green}${answer}${restore}"
-		[[ -n "${5}" ]] && rm -rf ${5}
+		[[ -n "${5}" ]] && rm -rf "${5}"
 		tar -xf "${1}/${2}_${answer}.tar.bz2" -C ${4} 2>/dev/null
 		eend $? 2>/dev/null
 		break
@@ -333,7 +333,7 @@ diff_ask(){
 			unset full_diff
 			rm "${2}" 2>/dev/null
 			return 0
-			break
+				# break removed - dead code after return 0 above
 		fi
 	fi
 	rm "${2}" 2>/dev/null
@@ -347,7 +347,7 @@ remove_ask(){
 		while read x;do
 			case ${x} in
 				Yes | YES | yes | Y | y | "" )
-					rm -rf ${1} 2>/dev/null
+					rm -rf "${1}" 2>/dev/null
 					break;;
 				No | NO | no | N | n )
 					break;;
@@ -358,7 +358,7 @@ remove_ask(){
 		eend $? 2>/dev/null
 	elif [[ -n "${yes}" && -z "${PRETEND}" ]];then
 		echo -e "${contrast}Removing${restore} ${green}${1}${restore}"
-		rm -rf ${1} 2>/dev/null
+		rm -rf "${1}" 2>/dev/null
 		eend $? 2>/dev/null
 	elif [[ -z "${yes}" && -n "${PRETEND}" ]];then
 		eend 0 2>/dev/null
@@ -1160,7 +1160,7 @@ f_to_d(){
 		if [[ -f "${package}" ]];then
 			echo -e "${underline}Processing${restore}: ${contrast}${package##*/}${restore}"
 			tmp_file="$(mktemp)"
-			mv ${package} ${tmp_file} 2>/dev/null
+			mv "${package}" "${tmp_file}" 2>/dev/null
 			sed -e 's|^#.*||g' -i "${tmp_file}"
 			dir="${PORT_ETC}/${package##*/}"
 			mkdir "${dir}"
@@ -1355,7 +1355,7 @@ remove_trash(){
 			entry="$(qatom "$(tr -d '<>=~#' <<< "${line}")" | awk '{print $1,$2}' | tr ' ' '/')"
 			if [[ "${atom}" == "${entry}" ]];then
 				if ! eix -qe --installed-masked "${entry}";then
-					if $(eix -Iqe ${atom});then
+					if $(eix -Iqe "${atom}");then
 						echo -e "stupid entry:              ${green}${line}${restore}"
 					else
 						echo -e "stupid entry (${red}!${restore}installed): ${green}${line}${restore}"
@@ -1383,7 +1383,7 @@ stupid_unmask(){
 ################ stupid mask/unmask uses ###################################
 sort_uniq_mask_use(){
 	if [[ -d "${PORT_ETC}/profile" || -h "${PORT_ETC}/profile" ]];then
-		for package in $(find ${PORT_ETC}/profile -type f \! -name '*~' \! -name '*.bak' -name "use.stable.mask" -or -name "use.mask");do
+		for package in $(find ${PORT_ETC}/profile -type f '(' \! -name '*~' \! -name '*.bak' ')' '(' -name "use.stable.mask" -o -name "use.mask" ')');do
 			tmp_sort="$(mktemp)"
 			echo -e "${underline}Sorting${restore} ${contrast}${package#${PORT_ETC}/}${restore}"
 
@@ -1739,10 +1739,9 @@ overlays(){
 		trash="$(fix_deps)"
 		if [[ -n "${trash}" ]];then
 			echo -e "$(tr ' ' $'\n' <<< "${trash% }" | sed "s|^|removing:\\${green}|;s|$|\\${restore}|")"
-			rm -rf ${trash} 2>/dev/null || echo failed && exit 1
+			rm -rf "${trash}" 2>/dev/null || echo failed && exit 1
 		else
 			break
-
 		fi
 	done
 	echo "done"
