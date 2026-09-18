@@ -909,94 +909,109 @@ invalid_uses(){
 	done
 	GLOBAL="$(echo "${GLOBAL}" | tr "[:space:]" $'\n' | sort -u)"
 ############################################################################
-	check_uses(){
-		echo -e "${underline}Checking use flags in${restore} ${contrast}${file#${PORT_ETC}/}${restore}:"
-		##### eix env #####
-		export OVERLAYS_LIST="no"
-		export FORMAT='<availableversions:USEONLY>'
-		export USEONLY=' <colliuse>'
-		#### just count
-		tput sc
-		tput civis
-		while IFS= read -r category pn ver slot;do
-			tput el
-			tput el1
-			echo -ne "["; printf "% ${chars}d" $((count--));echo -ne " ]" "atoms left" 2>/dev/null
-			tput rc
+check_uses(){
+	echo -e "${underline}Checking use flags in${restore} ${contrast}${file#${PORT_ETC}/}${restore}:"
+	##### eix env #####
+	export OVERLAYS_LIST="no"
+	export FORMAT='<availableversions:USEONLY>'
+	export USEONLY=' <colliuse>'
+	#### just count
+	tput sc
+	tput civis
+	while IFS= read -r category pn ver slot;do
+		tput el
+		tput el1
+		echo -ne "["; printf "% ${chars}d" $((count--));echo -ne " ]" "atoms left" 2>/dev/null
+		tput rc
 
-			ALL_USE=" $(eix -e "${category}/${pn}")" || continue
-			ALL_USE="$(sed -e 's| +| |g;s| -| |g;s|(+)||g;s|(-)||g' <<< "${ALL_USE}" | tr "[:space:]" $'\n' | sort -u | sed -e '/^$/d')"
-			LOCAL="$(grep "\<${category}/${pn}\> " "${file}" | cut -d" " -f2- | sed -e "s|#.*||g" | tr "[:space:]" $'\n' | sort -u)"
-			USES="$(sed -e 's|^-||g' <<< "${LOCAL}")"
-			for use in ${USES};do
-				if ! grep -q "^${use}$" <<< "${ALL_USE}" && [[ "${use}" != "*" ]];then
-					local dollar="$"
-					for agrep_opt in 1 2 3 B;do
-						for use_opt in "${use}" "^${use}" "${use}${dollar}" "^${use}${dollar}"; do
-							similar_use="$(agrep -${agrep_opt} "${use_opt}" 2>/dev/null <<< "${ALL_USE}")"
-							[[ -n "${similar_use}" ]] && (( $(wc -l <<< "${similar_use}") == 1 )) && break
-						done
+		ALL_USE=" $(eix -e "${category}/${pn}")" || continue
+		ALL_USE="$(sed -e 's| +| |g;s| -| |g;s|(+)||g;s|(-)||g' <<< "${ALL_USE}" | tr "[:space:]" $'\n' | sort -u | sed -e '/^$/d')"
+		LOCAL="$(grep "\<${category}/${pn}\> " "${file}" | cut -d" " -f2- | sed -e "s|#.*||g" | tr "[:space:]" $'\n' | sort -u)"
+		USES="$(sed -e 's|^-||g' <<< "${LOCAL}")"
+		for use in ${USES};do
+			if ! grep -q "^${use}$" <<< "${ALL_USE}" && [[ "${use}" != "*" ]];then
+				local dollar="$"
+				for agrep_opt in 1 2 3 B;do
+					for use_opt in "${use}" "^${use}" "${use}${dollar}" "^${use}${dollar}"; do
+						similar_use="$(agrep -${agrep_opt} "${use_opt}" 2>/dev/null <<< "${ALL_USE}")"
 						[[ -n "${similar_use}" ]] && (( $(wc -l <<< "${similar_use}") == 1 )) && break
-						[[ -z "${similar_use}" ]] || (( $(wc -l <<< "${similar_use}") > 1 )) && similar_use=""
 					done
-					if [[ -z "${similar_use}" ]];then
-						grep -q " ${use}\>" <<< "${incorrect_use}" || incorrect_use="${incorrect_use} ${use}"
-					else
-						local _grep_pat
-						_grep_pat="^${category}/${pn}[[:space:]].*\<${use}\>"
-						strings="$(grep "$_grep_pat" "${tmp_file}")"
-						echo -e "${category}/${pn}: ${red}${use} ---> ${green}${similar_use}${restore}"
-						USE_FROM="${use}"; USE_TO="${similar_use}"; apply_use_replacement "replace"
-						incorrect_use="${incorrect_use// ${similar_use}/}"
-					fi
+					[[ -n "${similar_use}" ]] && (( $(wc -l <<< "${similar_use}") == 1 )) && break
+					[[ -z "${similar_use}" ]] || (( $(wc -l <<< "${similar_use}") > 1 )) && similar_use=""
+				done
+				if [[ -z "${similar_use}" ]];then
+					grep -q " ${use}\>" <<< "${incorrect_use}" || incorrect_use="${incorrect_use} ${use}"
 				else
-					incorrect_use="${incorrect_use// ${use}/}"
-				fi
-
-				if grep -q "^${use}$" <<< "${GLOBAL}" && grep -q "^${use}$" <<< "${LOCAL}";then
-					global_use="${global_use} ${use}"
-				elif grep -q "^-${use}$" <<< "${GLOBAL}" && grep -q "^-${use}$" <<< "${LOCAL}";then
-					global_use="${global_use} -${use}"
-					incorrect_use="${incorrect_use// ${use}/}"
-				fi
-			done
-
-			incorrect_use="$(echo "${incorrect_use}" | tr "[:space:]" $'\n' | sed -e 's|  | |g' -e '/^ $/d' -e '/^$/d' | sort -u)"
-			global_use="$(echo "${global_use}" | tr "[:space:]" $'\n' | sed -e 's|  | |g' -e '/^ $/d' -e '/^$/d' | sort -u)"
-			if [[ -n "${incorrect_use}" ]];then
-				while IFS= read -r trash;do
-					echo -e "Invalid use: ${green}${category}/${pn}${restore}: ${red}${trash}${restore}"
 					local _grep_pat
-					_grep_pat="^${category}/${pn}[[:space:]].*\<${trash}\>"
+					_grep_pat="^${category}/${pn}[[:space:]].*\<${use}\>"
 					strings="$(grep "$_grep_pat" "${tmp_file}")"
-					USE_TRASH="${trash}"; apply_use_replacement "remove"
-				done <<< "${incorrect_use}"
+					echo -e "${category}/${pn}: ${red}${use} ---> ${green}${similar_use}${restore}"
+					USE_FROM="${use}"; USE_TO="${similar_use}"; apply_use_replacement "replace"
+					incorrect_use="${incorrect_use// ${similar_use}/}"
+				fi
+			else
+				incorrect_use="${incorrect_use// ${use}/}"
 			fi
-			if [[ -n "${global_use}" ]];then
-				while IFS= read -r trash;do
-					echo -e "Global  use: ${green}${category}/${pn}${restore}: ${red}${trash}${restore}"
-					local _grep_pat
-					_grep_pat="^${category}/${pn}[[:space:]].*\<${trash#-}\>"
-					strings="$(grep "$_grep_pat" "${tmp_file}")"
-					USE_TRASH="${trash}"; apply_use_replacement "remove"
-				done <<< "${global_use}"
+
+			if grep -q "^${use}$" <<< "${GLOBAL}" && grep -q "^${use}$" <<< "${LOCAL}";then
+				global_use="${global_use} ${use}"
+			elif grep -q "^-${use}$" <<< "${GLOBAL}" && grep -q "^-${use}$" <<< "${LOCAL}";then
+				global_use="${global_use} -${use}"
+				incorrect_use="${incorrect_use// ${use}/}"
 			fi
-			unset ALL_USE LOCAL USES incorrect_use global_use use
-		done <<< "$([[ -n "${atoms}" ]] && echo -e "${atoms}")"
-		while IFS= read -r atom opt;do
-			if [[ -n "${atom}" ]] && [[ -z "${opt}" ]];then
-				echo -e "Removing atom: ${green}${atom}${restore}"
-				sed -e "s|^${atom} *$||" -e '/^$/d' -i "${tmp_file}" 2>/dev/null
-			fi
-		done <<< "$(if [[ -n "${IGNORE}" ]]; then grep -v "${IGNORE}" < "${file}"; else cat "${file}"; fi)"
-		while IFS= read -r atom opt;do
-			if [[ -n "${atom}" ]] && [[ -z "${opt}" ]];then
-				echo -e "Removing atom: ${green}${atom}${restore}"
-				sed -e "s|^${atom} *$||" -e '/^$/d' -i "${tmp_file}" 2>/dev/null
-			fi
-		done <<< "$(if [[ -n "${IGNORE}" ]]; then grep -v "${IGNORE}" < "${tmp_file}"; else cat "${tmp_file}"; fi)"
-		unset FORMAT USEONLY
-	}
+		done
+
+		incorrect_use="$(echo "${incorrect_use}" | tr "[:space:]" $'\n' | sed -e 's|  | |g' -e '/^ $/d' -e '/^$/d' | sort -u)"
+		global_use="$(echo "${global_use}" | tr "[:space:]" $'\n' | sed -e 's|  | |g' -e '/^ $/d' -e '/^$/d' | sort -u)"
+		if [[ -n "${incorrect_use}" ]];then
+			while IFS= read -r trash;do
+				echo -e "Invalid use: ${green}${category}/${pn}${restore}: ${red}${trash}${restore}"
+				local _grep_pat
+				_grep_pat="^${category}/${pn}[[:space:]].*\<${trash}\>"
+				strings="$(grep "$_grep_pat" "${tmp_file}")"
+				USE_TRASH="${trash}"; apply_use_replacement "remove"
+			done <<< "${incorrect_use}"
+		fi
+		if [[ -n "${global_use}" ]];then
+			while IFS= read -r trash;do
+				echo -e "Global  use: ${green}${category}/${pn}${restore}: ${red}${trash}${restore}"
+				local _grep_pat
+				_grep_pat="^${category}/${pn}[[:space:]].*\<${trash#-}\>"
+				strings="$(grep "$_grep_pat" "${tmp_file}")"
+				USE_TRASH="${trash}"; apply_use_replacement "remove"
+			done <<< "${global_use}"
+		fi
+		unset ALL_USE LOCAL USES incorrect_use global_use use
+	done <<< "$([[ -n "${atoms}" ]] && echo -e "${atoms}")"
+	while IFS= read -r atom opt;do
+		if [[ -n "${atom}" ]] && [[ -z "${opt}" ]];then
+			echo -e "Removing atom: ${green}${atom}${restore}"
+			sed -e "s|^${atom} *$||" -e '/^$/d' -i "${tmp_file}" 2>/dev/null
+		fi
+	done <<< "$(if [[ -n "${IGNORE}" ]]; then grep -v "${IGNORE}" < "${file}"; else cat "${file}"; fi)"
+	while IFS= read -r atom opt;do
+		if [[ -n "${atom}" ]] && [[ -z "${opt}" ]];then
+			echo -e "Removing atom: ${green}${atom}${restore}"
+			sed -e "s|^${atom} *$||" -e '/^$/d' -i "${tmp_file}" 2>/dev/null
+		fi
+	done <<< "$(if [[ -n "${IGNORE}" ]]; then grep -v "${IGNORE}" < "${tmp_file}"; else cat "${tmp_file}"; fi)"
+	unset FORMAT USEONLY
+}
+############################################################################
+################ invalid_uses ##############################################
+invalid_uses(){
+	eix_check
+	# If cache creation failed (no root), skip invalid USE check
+	if [[ -z "${eix_cache}" || ! -f "${eix_cache}" ]];then
+		echo -e "${red}eix cache unavailable (not root), skipping invalid USE check${restore}"
+		return 0
+	fi
+	set -f
+	FULL="${PROFILE} ${MAKE_USES}"
+	for opt in ${FULL};do
+		GLOBAL+=" $(echo "${FULL}" | tr "[:space:]" $'\n' | grep -e "^${opt#-}$" -e "^-${opt#-}$" | tail -n1)"
+	done
+	GLOBAL="$(echo "${GLOBAL}" | tr "[:space:]" $'\n' | sort -u)"
 	if [[ -f "${PORT_ETC}/package.use" ]];then
 		file="${PORT_ETC}/package.use"
 		tmp_file="${TMPDIR_PORTCONF}/tmp_file"
@@ -1011,9 +1026,9 @@ invalid_uses(){
 		count="$(wc -l <<< "${atoms}")"
 		((count--))
 		chars="$(wc -m <<< "${count}")"
-		check_uses;
-		tput el;
-		tput cnorm;
+		check_uses
+		tput el
+		tput cnorm
 		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 		[[ ! -s "${file}" ]] && remove_ask "${file}"
 	elif [[ -d "${PORT_ETC}/package.use" ]];then
@@ -1032,7 +1047,7 @@ invalid_uses(){
 				count="$(wc -l <<< "${atoms}")"
 				((count--))
 				chars="$(wc -m <<< "${count}")"
-				check_uses;
+				check_uses
 				tput cnorm
 				[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 				[[ ! -s "${file}" ]] && remove_ask "${file}"
@@ -2110,3 +2125,4 @@ done
 ############################################################################
 ################ cleanup #################################################
 rm -rf "${TMPDIR_PORTCONF}" 2>/dev/null
+}
