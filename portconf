@@ -594,62 +594,66 @@ stupid_keywords(){
 sort_keys(){
 	tmp_file="${TMPDIR_PORTCONF}/tmp_file"
 	striped="${TMPDIR_PORTCONF}/striped"
-	PACKAGES="$(awk '!/^#/ {print $1}' ${file} | uniq)"
-	for atom in ${PACKAGES};do
+	: > "${tmp_file}"
+
+	# Determine atoms: filter comments and escape wildcards if sort mode, else raw
+	if [[ "${SORT_KEYS_MODE}" == "last" ]];then
+		atoms="$(awk '{print $1}' "${file}" | sort -u)"
+	else
+		atoms="$(awk '!/^#/ {print $1}' "${file}" | uniq)"
+	fi
+
+	for atom in ${atoms};do
 		comment="$(grep "${atom}[[:space:]].*#" "${file}" | cut -d\# -f2-)"
-		for option in \
-		$(grep "^$(sed_escape "${atom//\*/\\*}")[[:space:]]" "${file}" | sed -e "s|$(sed_escape "${atom//\*/\\*}") ||" -e "s|#.*$(sed_escape "${comment}")||" | tr "[:space:]" $'\n' | uniq | tr $'\n' " ");do
-			atom_opts+=" ${option}"
-		done
-		keys="$(sort_passed_uses "${atom_opts}")"
-		keys="$(sed -e "s|^- | |g" -e "s| -- ||g" -e "s| - | |g" <<< "${keys}")"
-		keys="${keys:-"~${ARCH}"}"
-		if [[ -n "${comment}" ]];then
-			echo "${atom} ${keys} #${comment}" >> "${tmp_file}"
+		if [[ "${SORT_KEYS_MODE}" == "last" ]];then
+			# Take last keyword (sort_keywords mode)
+			keyword="$(grep "$(sed_escape "${atom}")[[:space:]]" "${file}" | sed -e "s|$(sed_escape "${atom}") ||" -e "s|#.*$(sed_escape "${comment}")||" | tr "[:space:]" $'\n' | sed '/^$/d' | tail -n1)"
+			keyword="${keyword:-"~${ARCH}"}"
 		else
-			echo "${atom} ${keys}" >> "${tmp_file}"
+			# Sort and deduplicate keywords (sort_keys mode)
+			for option in \
+			$(grep "^$(sed_escape "${atom//\*/\\*}")[[:space:]]" "${file}" | sed -e "s|$(sed_escape "${atom//\*/\\*}") ||" -e "s|#.*$(sed_escape "${comment}")||" | tr "[:space:]" $'\n' | uniq | tr $'\n' " ");do
+				atom_opts+=" ${option}"
+			done
+			keyword="$(sort_passed_uses "${atom_opts}")"
+			keyword="$(sed -e "s|^- | |g" -e "s| -- ||g" -e "s| - | |g" <<< "${keyword}")"
+			keyword="${keyword:-"~${ARCH}"}"
+			unset atom_opts
 		fi
-		unset atom atom_opts option options keys comment
+		if [[ -n "${comment}" ]];then
+			echo "${atom} ${keyword} #${comment}" >> "${tmp_file}"
+		else
+			echo "${atom} ${keyword}" >> "${tmp_file}"
+		fi
+		unset atom keyword comment
 	done
+
 	cp "${tmp_file}" "${striped}" 2>/dev/null
 
-	while IFS= read -r atom opt;do
-		[[ -z "${opt}" ]] && sed -e "s|^${atom}[ \t]$|${atom} ~${ARCH}|;s|^${atom}$|${atom} ~${ARCH}|" -i "${striped}" 2>/dev/null
-		unset atom opt
-	done < "${tmp_file}"
+	if [[ "${SORT_KEYS_MODE}" != "last" ]];then
+		# Add ~ARCH to atoms without keywords (sort_keys mode only)
+		while IFS= read -r atom opt;do
+			[[ -z "${opt}" ]] && sed -e "s|^${atom}[ \t]$|${atom} ~${ARCH}|;s|^${atom}$|${atom} ~${ARCH}|" -i "${striped}" 2>/dev/null
+			unset atom opt
+		done < "${tmp_file}"
+	fi
 
 	sed -e 's/[ \t]*$//' -e '/^$/d' -e 's|  | |g' -e "s| - | |g" -i "${striped}" 2>/dev/null
-	sort -u "${striped}" > "${tmp_file}" 2>/dev/null
-	stupid_keywords "${tmp_file}" "${striped}"
-	rm "${tmp_file}" 2>/dev/null
+	if [[ "${SORT_KEYS_MODE}" == "last" ]];then
+		sort -u "${striped}" > "${tmp_file}" 2>/dev/null
+		stupid_keywords "${file}" "${striped}"
+		rm "${tmp_file}"
+	else
+		sort -u "${striped}" > "${tmp_file}" 2>/dev/null
+		stupid_keywords "${tmp_file}" "${striped}"
+		rm "${tmp_file}" 2>/dev/null
+	fi
 	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
 } #2>/dev/null
 ############################################################################
 ################ one_keyword ###############################################
 sort_keywords(){
-	keys(){
-		tmp_file="${TMPDIR_PORTCONF}/tmp_file"
-		striped="${TMPDIR_PORTCONF}/striped"
-		atoms="$(awk '{print $1}' "${file}" | sort -u)"
-		while IFS= read -r atom;do
-			comment="$(grep "${atom}[[:space:]].*#" "${file}" | cut -d\# -f2-)"
-			keyword="$(grep "$(sed_escape "${atom}")[[:space:]]" "${file}" | sed -e "s|$(sed_escape "${atom}") ||" -e "s|#.*$(sed_escape "${comment}")||" |\
-						tr "[:space:]" $'\n' | sed '/^$/d' | tail -n1)"
-			keyword="${keyword:-"~${ARCH}"}"
-			if [[ -n "${comment}" ]];then
-				echo "${atom} ${keyword} #${comment}" >> "${tmp_file}"
-			else
-				echo "${atom} ${keyword}" >> "${tmp_file}"
-			fi
-		done <<< "${atoms}"
-		sort -u "${tmp_file}" > "${striped}" 2>/dev/null
-		stupid_keywords "${file}" "${striped}"
-		# Clean double spaces to prevent infinite loop
-		sed -i 's/  */ /g; s/^ //; s/ $//' "${striped}"
-		rm "${tmp_file}"
-		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
-	}
-	file_or_dir "package.keywords package.accept_keywords" "Sorting keywords in" "keys" || return 1
+	file_or_dir "package.keywords package.accept_keywords" "Sorting keywords in" "SORT_KEYS_MODE=last" "sort_keys" || return 1
 }
 ############################################################################
 ################ uniq_keyword ##############################################
