@@ -421,7 +421,7 @@ sort_uniq_files(){
 		done <<< "${all_atoms}"
 
 		sed -e '/^$/d' -e 's/[ \t]*$//' -i ${tmp_sort}
-		sort -u "${tmp_sort}" 2>/dev/null
+		sort -u "${tmp_sort}" -o "${tmp_sort}" 2>/dev/null
 		[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_sort}"
 	done
 }
@@ -511,7 +511,8 @@ sort_uses(){
 		unset atom opt
 	done < "${tmp_file}"
 	sed -e 's/[ \t]*$//' -e '/^$/d' -e 's|  | |g' -e "s| - | |g" -i "${striped}" 2>/dev/null
-	sort -u "${striped}" 2>/dev/null
+	sort -u "${striped}" > "${tmp_file}" 2>/dev/null
+	cp "${tmp_file}" "${striped}" 2>/dev/null
 	rm "${tmp_file}" 2>/dev/null
 	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
 } 2>/dev/null
@@ -597,8 +598,7 @@ sort_keys(){
 	done < "${tmp_file}"
 
 	sed -e 's/[ \t]*$//' -e '/^$/d' -e 's|  | |g' -e "s| - | |g" -i "${striped}" 2>/dev/null
-	sort -u "${striped}" 2>/dev/null
-	cp "${striped}" "${tmp_file}"
+	sort -u "${striped}" > "${tmp_file}" 2>/dev/null
 	stupid_keywords "${tmp_file}" "${striped}"
 	rm "${tmp_file}" 2>/dev/null
 	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
@@ -621,8 +621,7 @@ sort_keywords(){
 				echo "${atom} ${keyword}" >> "${tmp_file}"
 			fi
 		done <<< "${atoms}"
-		sort -u "${tmp_file}" 2>/dev/null
-		cp "${tmp_file}" "${striped}"
+		sort -u "${tmp_file}" > "${striped}" 2>/dev/null
 		stupid_keywords "${striped}" "${tmp_file}"
 		rm "${striped}"
 		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
