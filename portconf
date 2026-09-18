@@ -1125,7 +1125,7 @@ not_found(){
 ############################################################################
 ################ profile's uses in make.conf ###############################
 use_makeconf(){
-	echo -e "${underline}Checking use flags in${restore} ${contrast}${makefile##/etc*/}${restore}"
+	echo -e "${underline}Checking profile USE in${restore} ${contrast}${makefile##/etc*/}${restore}"
 
 	# Build a set of profile flags for fast lookup
 	declare -A profile_flags
