@@ -143,32 +143,6 @@ timestamp(){
 	stat -c %Y "$@" 2>/dev/null | sort | tail -n1
 }
 ############################################################################
-################ repo fix ##################################################
-repo_fix(){
-	if [[ -n "${PORTDIR_OVERLAY}" ]];then
-		for path in ${PORTDIR_OVERLAY};do
-			local_categories="$(ls -d1 ${path}/{*-*,virtual} 2>/dev/null | sed -e "s|${path}/||g" | sort -u)"
-			portage_categoties="$(cat ${PORTDIR}/profiles/categories)"
-			if [[ -n "$(grep -v "${portage_categoties}" <<< "${local_categories}")" ]];then
-				if [[ ! -f "${path}/profiles/categories" ]];then
-					[[ ! -d "${path}/profiles" ]] && mkdir "${path}/profiles" && tmp_categories+=" ${path}/profiles"
-					echo -e "Creating temporary 'categories': ${path}"
-					echo "${local_categories}" >> "${path}/profiles/categories"
-					tmp_categories+=" ${path}/profiles/categories"
-				fi
-			fi
-		done
-	fi
-}
-############################################################################
-################ rm repo fix ###############################################
-rm_repo_fix(){
-	if [[ -n "${tmp_categories}" ]];then
-		for tmp_category in ${tmp_categories};do
-			rm -rf "${tmp_category}"
-		done
-	fi
-}
 ############################################################################
 ################ eix check #################################################
 eix_check(){
@@ -236,8 +210,6 @@ backup(){
 	[[ -d "${BRDIR}" ]] || mkdir -p "${BRDIR}"
 	tarballs="$(ls -1 --color=never ${BRDIR})"
 	oldest="$(head -n1 <<< "${tarballs}")"
-	# shellcheck disable=SC2034
-	newest="$(tail -n1 <<< "${tarballs}")"
 	count="$( wc -l <<< "${tarballs}")"
 	count="${count:-0}"
 	if [[ -f "/etc/make.conf" ]];then
@@ -269,8 +241,6 @@ world_backup(){
 	[[ -d "${world_dir}" ]] || mkdir -p "${world_dir}"
 	tarballs="$(ls -1 --color=never ${world_dir})"
 	oldest="$(head -n1 <<< "${tarballs}")"
-	# shellcheck disable=SC2034
-	newest="$(tail -n1 <<< "${tarballs}")"
 	count="$( wc -l <<< "${tarballs}")"
 	count="${count:-0}"
 	world_update="$(timestamp ${WORLD})"
@@ -372,12 +342,10 @@ diff_ask(){
 						fi
 						unset full_diff
 						return 0
-						break;;
 					No | NO | no | N | n )
 						unset full_diff
 						rm "${2}" 2>/dev/null
 						return 0
-						break;;
 					* ) echo -ne "Sorry, response '${x}' not understood. [${green}Yes${restore}/${red}No${restore}] "
 						continue;;
 				esac
@@ -391,7 +359,6 @@ diff_ask(){
 			unset full_diff
 			rm "${2}" 2>/dev/null
 			return 0
-				# break removed - dead code after return 0 above
 		fi
 	fi
 	rm "${2}" 2>/dev/null
@@ -653,11 +620,7 @@ installed(){
 	installed="$(qlist -ICSec "${category}/${pn}" | awk '{print $2}')"
 	if [[ -n "${installed}" ]];then
 		installed_vers="$(awk -F \: '{print $1}' <<< "${installed}")"
-		# shellcheck disable=SC2034
-		installed_min_ver="$(head -n1 <<< "${installed_vers}")"
-		installed_max_ver="$(tail -n1 <<< "$(grep -v 9999 <<< "${installed_vers}")")"
-		installed_live_ver="$(tail -n1 <<< "$(grep 9999 <<< "${installed_vers}")")"
-		installed_slots="$(awk -F \: '{print $2}' <<< "${installed}")"
+	installed_slots="$(awk -F \: '{print $2}' <<< "${installed}")"
 		#::repo check
 		full_vers="$(qlist -ICev "${category}/${pn}" | sed "s|${category}/${pn}-||g")"
 		(( "$(wc -l <<< "${full_vers}")" > 1 ))
@@ -1170,19 +1133,31 @@ not_found(){
 ################ profile's uses in make.conf ###############################
 use_makeconf(){
 	echo -e "${underline}Checking use flags in${restore} ${contrast}${makefile##/etc*/}${restore}"
-	USE="$(echo -e "${MAKE_USES}" | tr "[:space:]" $'\n' | sort -u | sed -e '/^$/d')"
+	# Collect flags from all *_USE="..." lines
+	USE="$(grep -E '^[A-Za-z_]*USE="[^"]*"' "${makefile}" | \
+		sed -E 's/^[A-Za-z_]*USE="//;s/" *$//' | \
+		tr "[:space:]" $'\n' | sort -u | sed -e '/^$/d')"
 
 	tmp_file="${TMPDIR_PORTCONF}/tmp_file"
- 	cp "${makefile}" "${tmp_file}"
+	cp "${makefile}" "${tmp_file}"
 	while read use;do
 		flag="${use#-}"
 		if [[ -n ${flag} ]];then
 			if grep -q "^${flag}$" <<< "${USE}" && grep -q "^${flag}$" <<< "${PROFILE}";then
 				echo -e "Twice defined: ${red}${use}${restore}"
-				sed -e "s|\\b$(sed_escape "${flag}")\\b||g" -i ${tmp_file}
+				# Remove flag with surrounding spaces from all *_USE lines
+				sed -Ei 's/^[A-Za-z_]*USE="([^"]*)\b('"$(sed_escape "${flag}")"')\b([^"]*)"$/\1\2/' -i ${tmp_file}
+				sed -Ei 's/^[A-Za-z_]*USE="([^"]*)\b('"$(sed_escape "${flag}")"')\b([^"]*)"$/\1\2/' -i ${tmp_file}
+				# Clean trailing spaces before closing quote
+				sed -Ei 's/([A-Za-z_]*USE="[^"]*)  +"/\1"/g' -i ${tmp_file}
+				# Clean leading spaces after opening quote
+				sed -Ei 's/([A-Za-z_]*USE=") +/\1/g' -i ${tmp_file}
 			elif grep -q "^-${flag}$" <<< "${USE}" && grep -q "^-${flag}$" <<< "${PROFILE}";then
 				echo -e "Twice defined: ${red}-${use}${restore}"
-				sed -e "s|\\b-\\$(sed_escape "${flag}")\\b||g" -i ${tmp_file}
+				sed -Ei 's/^[A-Za-z_]*USE="([^"]*)\b-('"$(sed_escape "${flag}")"')\b([^"]*)"$/\1\2/' -i ${tmp_file}
+				sed -Ei 's/^[A-Za-z_]*USE="([^"]*)\b-('"$(sed_escape "${flag}")"')\b([^"]*)"$/\1\2/' -i ${tmp_file}
+				sed -Ei 's/([A-Za-z_]*USE="[^"]*)  +"/\1"/g' -i ${tmp_file}
+				sed -Ei 's/([A-Za-z_]*USE=") +/\1/g' -i ${tmp_file}
 			fi
 		fi
 	done <<< "${PROFILE}"
