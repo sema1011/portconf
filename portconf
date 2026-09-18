@@ -613,8 +613,8 @@ sort_keywords(){
 		done <<< "${atoms}"
 		sort -u "${tmp_file}" > "${striped}" 2>/dev/null
 		stupid_keywords "${tmp_file}" "${striped}"
-		rm "${striped}"
-		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
+		rm "${tmp_file}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
 	}
 	file_or_dir "package.keywords package.accept_keywords" "Sorting keywords in" "keys" || return 1
 }
