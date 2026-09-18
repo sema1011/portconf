@@ -341,11 +341,11 @@ diff_ask(){
 							exit 1
 						fi
 						unset full_diff
-						return 0
+						return 0;;
 					No | NO | no | N | n )
 						unset full_diff
 						rm "${2}" 2>/dev/null
-						return 0
+						return 0;;
 					* ) echo -ne "Sorry, response '${x}' not understood. [${green}Yes${restore}/${red}No${restore}] "
 						continue;;
 				esac
