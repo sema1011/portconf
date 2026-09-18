@@ -829,6 +829,12 @@ env_not_installed(){
 ############################################################################
 ################ incorrect uses ############################################
 invalid_uses(){
+	# Ensure eix cache exists
+	if [[ -z "${eix_cache}" || ! -f "${eix_cache}" ]];then
+		eix_check
+	else
+		export EIX_CACHEFILE="${eix_cache}"
+	fi
 	set -f
 	FULL="${PROFILE} ${MAKE_USES}"
 	for opt in ${FULL};do
