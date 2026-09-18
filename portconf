@@ -654,13 +654,64 @@ sort_keywords(){
 	file_or_dir "package.keywords package.accept_keywords" "Sorting keywords in" "SORT_KEYS_MODE=last" "sort_keys" || return 1
 }
 ############################################################################
+################ parse_atom ################################################
+# Parse qatom output: clean category/pn/ver/rev/slot
+# Sets global: PARSED_CAT PARSED_PN PARSED_VER PARSED_REV PARSED_SLOT
+parse_atom(){
+	local cat="$1" pn="$2" ver="$3" rev="$4" slot="$5"
+	local sw
+	sw="$(grep -o "[<>=~]" <<< "${cat}" | tr -d $'\n')"
+	cat="${cat##${sw}}"
+	[[ "${cat}" == "(null)" || "${pn}" == "(null)" ]] && return 1
+	[[ "${ver}" == "(null)" ]] && ver=""
+	if [[ -n "${rev}" ]] && ! grep -q \: <<< "${rev}";then
+		slot="${rev}"
+		unset rev
+	fi
+	[[ -n "${rev}" && -z "${slot}" ]] && grep -q \: <<< "${rev}" && slot="${rev}"
+	slot="${slot#:}"
+	pn="${pn%:}"
+	PARSED_CAT="${cat}"; PARSED_PN="${pn}"; PARSED_VER="${ver}"; PARSED_REV="${rev:-}"; PARSED_SLOT="${slot}"
+	return 0
+}
+############################################################################
+################ check_installed ###########################################
+# Check if a package is installed.
+# Args: $1=category $2=pn $3=ver $4=slot $5=defined_repo
+# Sets global: IS_INSTALLED=0 or 1
+check_installed(){
+	local cat="${1}" pn="${2}" ver="${3}" slot="${4}" defined_repo="${5}"
+	local installed installed_slots full_vers all_vers full_ver
+	installed="$(qlist -ICSec "${cat}/${pn}" 2>/dev/null | awk '{print $2}')"
+	if [[ -n "${installed}" ]];then
+		installed_slots="$(awk -F \: '{print $2}' <<< "${installed}")"
+		if [[ -n "${defined_repo}" ]];then
+			full_vers="$(qlist -ICev "${cat}/${pn}" 2>/dev/null | sed "s|${cat}/${pn}-||g")"
+			(( "$(wc -l <<< "${full_vers}")" > 1 ))
+			for full_ver in ${full_vers};do
+				all_vers+=" ${PKGDB}/${cat}/${pn}-${full_ver}/repository"
+			done
+			if grep -qe "^${defined_repo}$" "${all_vers}" 2>/dev/null;then
+				IS_INSTALLED=0
+			else
+				IS_INSTALLED=1
+			fi
+			unset all_vers
+		else
+			IS_INSTALLED=0
+		fi
+	else
+		IS_INSTALLED=1
+	fi
+}
+############################################################################
 ################ not_installed #############################################
 installed(){
-	installed="$(qlist -ICSec "${category}/${pn}" | awk '{print $2}')"
+	installed="$(qlist -ICSec "${category}/${pn}" 2>/dev/null | awk '{print $2}')"
 	if [[ -n "${installed}" ]];then
 		installed_slots="$(awk -F \: '{print $2}' <<< "${installed}")"
 		#::repo check
-		full_vers="$(qlist -ICev "${category}/${pn}" | sed "s|${category}/${pn}-||g")"
+		full_vers="$(qlist -ICev "${category}/${pn}" 2>/dev/null | sed "s|${category}/${pn}-||g")"
 		(( "$(wc -l <<< "${full_vers}")" > 1 ))
 		if [[ -n "${defined_repo}" ]];then
 			for ver in ${full_vers};do
@@ -687,26 +738,15 @@ not_if(){
 			fi
 			[[ -n "${defined_repo}" ]] && atom="${atom%%::${defined_repo}}"
 			while IFS= read -r category pn ver rev slot;do
-				sw="$(grep -o "[<>=~]" <<< "${category}" | tr -d $'\n')"
-				category="${category##${sw}}"
-
-				[[ "${category}" == "(null)" || "${pn}" == "(null)" ]] && continue
-
-				if [[ -n "${rev}" ]] && [[ -z "${slot}" ]] && grep -q \: <<< "${rev}";then
-					slot="${rev}"
-					unset rev
-				fi
-				slot="${slot#:}"
-				pn="${pn%:}"
-				installed;
-
-				if [[ -z "${installed}" ]];then
+				parse_atom "${category}" "${pn}" "${ver}" "${rev}" "${slot}" || continue
+				check_installed "${PARSED_CAT}" "${PARSED_PN}" "${PARSED_VER}" "${PARSED_SLOT}" "${defined_repo}"
+				if [[ "${IS_INSTALLED}" -eq 1 ]];then
 					if [[ -n "${defined_repo}" ]];then
-						echo -e "${red}Not installed${restore} ${green}${category}/${pn}::${underline}${defined_repo}${restore}"
+						echo -e "${red}Not installed${restore} ${green}${PARSED_CAT}/${PARSED_PN}::${underline}${defined_repo}${restore}"
 					else
-						echo -e "${red}Not installed${restore} ${green}${category}/${pn}${restore}"
+						echo -e "${red}Not installed${restore} ${green}${PARSED_CAT}/${PARSED_PN}${restore}"
 					fi
-					sed -e "s|.*\<${category}/${pn}\>.*||" -e '/^$/d' -i "${tmp_package}" 2>/dev/null
+					sed -e "s|.*\<${PARSED_CAT}/${PARSED_PN}\>.*||" -e '/^$/d' -i "${tmp_package}" 2>/dev/null
 				fi
 			done <<< "$(qatom "${atom}")"
 		done <<< "${atoms}"
@@ -802,34 +842,28 @@ env_not_installed(){
 			atom="$(qatom "${file}")"
 			atom="$(sed -e '/^$/d' <<< "${atom}")"
 			while IFS= read -r category pn ver rev slot;do
-				[[ "${category}" == "(null)" || "${pn}" == "(null)" ]] && continue
-				[[ "${ver}" == "(null)" ]] && ver="${ver//(null)/}"
-				if [[ -n "${rev}" ]] && ! grep -q \: <<< "${rev}";then
-					full_ver="${ver}-${rev}"
-				else
-					full_ver="${ver}"
-				fi
-
-				[[ -n "${rev}" && -z "${slot}" ]] && grep -q \: <<< "${rev}" && slot="${rev}"
-				slot="${slot#:}"
-
-				if [[ -z "${ver}" && -z "${slot}" ]];then
-					if ! ls -d1 ${PKGDB}/"${category}"/"${pn}"-[0-9]* &>/dev/null;then
-						echo -e "${red}Not installed${restore} ${green}${category}/${pn}${restore}"
+				parse_atom "${category}" "${pn}" "${ver}" "${rev}" "${slot}" || continue
+				if [[ -z "${PARSED_VER}" && -z "${PARSED_SLOT}" ]];then
+					if ! ls -d1 ${PKGDB}/${PARSED_CAT}/${PARSED_PN}-[0-9]* &>/dev/null;then
+						echo -e "${red}Not installed${restore} ${green}${PARSED_CAT}/${PARSED_PN}${restore}"
 						RM+="${PORT_ETC}/${x}/${file}%"
 					fi
 				fi
 
-				if [[ -n "${ver}" && -z "${slot}" ]] ;then
-					if ! ls -d1 ${PKGDB}/"${category}"/"${pn}"-"${full_ver}" &>/dev/null;then
-						echo -e "${red}Not installed${restore} ${green}${category}/${pn}-${full_ver}${restore}"
+				if [[ -n "${PARSED_VER}" && -z "${PARSED_SLOT}" ]] ;then
+					full_ver="${PARSED_VER}"
+					if [[ -n "${PARSED_REV}" && -n "${PARSED_REV}" ]];then
+						full_ver="${PARSED_VER}-${PARSED_REV}"
+					fi
+					if ! ls -d1 ${PKGDB}/${PARSED_CAT}/${PARSED_PN}-${full_ver} &>/dev/null;then
+						echo -e "${red}Not installed${restore} ${green}${PARSED_CAT}/${PARSED_PN}-${full_ver}${restore}"
 						RM+="${PORT_ETC}/${x}/${file}%"
 					fi
 				fi
 
-				if [[ -z "${ver}" && -n "${slot}" ]] ;then
-					if [[ -z "$(cat ${PKGDB}/"${category}"/"${pn}"-[0-9]*/SLOT 2>/dev/null | grep "${slot}")" ]];then
-						echo -e "${red}Not installed${restore} ${green}${category}/${pn}:${slot}${restore}"
+				if [[ -z "${PARSED_VER}" && -n "${PARSED_SLOT}" ]] ;then
+					if [[ -z "$(cat ${PKGDB}/${PARSED_CAT}/${PARSED_PN}-[0-9]*/SLOT 2>/dev/null | grep "${PARSED_SLOT}")" ]];then
+						echo -e "${red}Not installed${restore} ${green}${PARSED_CAT}/${PARSED_PN}:${PARSED_SLOT}${restore}"
 						RM+="${PORT_ETC}/${x}/${file}%"
 					fi
 				fi
