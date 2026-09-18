@@ -1133,34 +1133,39 @@ not_found(){
 ################ profile's uses in make.conf ###############################
 use_makeconf(){
 	echo -e "${underline}Checking use flags in${restore} ${contrast}${makefile##/etc*/}${restore}"
-	# Collect flags from all *_USE="..." lines
-	USE="$(grep -E '^[A-Za-z_]*USE="[^"]*"' "${makefile}" | \
-		sed -E 's/^[A-Za-z_]*USE="//;s/" *$//' | \
-		tr "[:space:]" $'\n' | sort -u | sed -e '/^$/d')"
+
+	# Build a set of profile flags for fast lookup
+	declare -A profile_flags
+	for flag in ${PROFILE};do
+		profile_flags["${flag}"]=1
+	done
 
 	tmp_file="${TMPDIR_PORTCONF}/tmp_file"
-	cp "${makefile}" "${tmp_file}"
-	while read use;do
-		flag="${use#-}"
-		if [[ -n ${flag} ]];then
-			if grep -q "^${flag}$" <<< "${USE}" && grep -q "^${flag}$" <<< "${PROFILE}";then
-				echo -e "Twice defined: ${red}${use}${restore}"
-				# Remove flag from all *_USE lines: delete flag with surrounding spaces
-				sed -Ei '/^[A-Za-z_]*USE=/s/ '"${flag}"'//g' ${tmp_file}
-				# Clean up extra spaces: leading, trailing, double
-				sed -Ei 's/([A-Za-z_]*USE=") +/\1/g' ${tmp_file}
-				sed -Ei 's/ ([A-Za-z_]*USE="[^"]*)"/\1"/g' ${tmp_file}
-				sed -Ei 's/  +/ /g' ${tmp_file}
-			elif grep -q "^-${flag}$" <<< "${USE}" && grep -q "^-${flag}$" <<< "${PROFILE}";then
-				echo -e "Twice defined: ${red}-${use}${restore}"
-				sed -Ei '/^[A-Za-z_]*USE=/s/ -'"${flag}"'//g' ${tmp_file}
-				sed -Ei 's/([A-Za-z_]*USE=") +/\1/g' ${tmp_file}
-				sed -Ei 's/ ([A-Za-z_]*USE="[^"]*)"/\1"/g' ${tmp_file}
-				sed -Ei 's/  +/ /g' ${tmp_file}
-			fi
+	: > "${tmp_file}"
+	local changed=0
+
+	while IFS= read -r line;do
+		if [[ "${line}" =~ ^([A-Za-z_]*USE)=\"([^\"]*)\" ]];then
+			varname="${BASH_REMATCH[1]}"
+			val="${BASH_REMATCH[2]}"
+			new_val=""
+			for flag in ${val};do
+				if [[ -n "${profile_flags[${flag}]:-}" ]];then
+					echo -e "Twice defined: ${red}${flag}${restore} in ${varname}"
+					changed=1
+				else
+					new_val+=" ${flag}"
+				fi
+			done
+			new_val="${new_val# }"
+			echo "${varname}=\"${new_val}\"" >> "${tmp_file}"
+		else
+			echo "${line}" >> "${tmp_file}"
 		fi
-	done <<< "${PROFILE}"
-	[[ -z "${NO_DIFF}" ]] && diff_ask "${makefile}" "${tmp_file}"
+	done < "${makefile}"
+
+	[[ "${changed}" -eq 1 && -z "${NO_DIFF}" ]] && diff_ask "${makefile}" "${tmp_file}"
+	[[ "${changed}" -eq 0 ]] && rm -f "${tmp_file}"
 }
 ############################################################################
 ################ empty files ###############################################
