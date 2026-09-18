@@ -1,8 +1,6 @@
 portconf
 ========
-
-must be installed from stuff overlay ONLY!!!
-==========================================
+Originally written by megabaks https://github.com/megabaks/portconf (2012–2014).
 
 /etc/portage cleaner
 
