@@ -31,7 +31,7 @@ COUNT="${COUNT:-10}"
 IGNORE="${IGNORE_CATEGORY}
 ${IGNORE_PN}"
 IGNORE="$(sed -e '/^$/d' <<< "${IGNORE}")"
-IGNORE="${IGNORE:-'Hello, LOR! :3'}"
+IGNORE="${IGNORE:-}"
 ############################################################################
 ################ sort_passed_uses ##########################################
 sort_passed_uses(){
@@ -47,12 +47,18 @@ sort_passed_uses(){
 ############################################################################
 ################ profile ###################################################
 profile() {
-	local use path
-	[[ -f "${1}/make.defaults" ]] && . "${1}/make.defaults"
-	use="$USE"
+	local use path _profile_visited
+	[[ -f "${1}/make.defaults" ]] && use="$(. "${1}/make.defaults" 2>/dev/null; echo "$USE")" || use=""
 	if [[ -f "${1}/parent" ]]; then
+		_profile_visited="$(readlink -f "${1}")"
 		for path in $(cat "${1}"/parent);do
-			use="$use $(profile "${1}/$path")"
+			local _resolved
+			_resolved="$(readlink -f "${1}/$path" 2>/dev/null)" || continue
+			if ! grep -qxF "$_resolved" <<< "$_profile_visited"; then
+				_profile_visited+="
+$_resolved"
+				use="$use $(profile "${1}/$path")"
+			fi
 		done
 	fi
 	echo "$use"
@@ -105,6 +111,29 @@ current_profile(){
 MAKE_USES="${USE}"
 unset USE
 PORTDIR="${PORTDIR:-/usr/portage}"
+############################################################################
+################ sed_escape ##################################################
+sed_escape(){
+	# Escape sed special characters: & \ / and regex metacharacters
+	local s="$1"
+	s="${s//\\/\\\\}"
+	s="${s//&/\\&}"
+	s="${s//\//\\/}"
+	s="${s//$'\n'/\\n}"
+	s="${s//\[/\\[}"
+	s="${s//\]/\\]}"
+	s="${s//\^/\\^}"
+	s="${s//\$/\\$}"
+	s="${s//\./\\.}"
+	s="${s//\*/\\*}"
+	s="${s//\?/\\?}"
+	s="${s//\(/\\(}"
+	s="${s//\)/\\)}"
+	s="${s//\|/\\|}"
+	s="${s//\{/\\{}"
+	s="${s//\}/\\}}"
+	echo "$s"
+}
 ############################################################################
 ################ temp directory ##########################################
 TMPDIR_PORTCONF="$(mktemp -d)"
@@ -200,7 +229,7 @@ backup(){
 	portconf_update="$(timestamp ${BRDIR}/*)"
 	portconf_update="${portconf_update:-0}"
 	if (( "${etc_update}" > "${portconf_update}" ));then
-		if (( "${count}" >= "${COUNT}" ));then
+		if (( "${count}" >= "${COUNT}" && -n "${oldest}" ));then
 			rm "${BRDIR}/${oldest}"
 		fi
 		echo -e "/etc/portage backup: ${green}creating${restore}..."
@@ -228,7 +257,7 @@ world_backup(){
 	portconf_update="$(timestamp ${world_dir}/*)"
 	portconf_update="${portconf_update:-0}"
 	if (( "${world_update}" > "${portconf_update}" ));then
-		if (( "${count}" >= "${COUNT}" ));then
+		if (( "${count}" >= "${COUNT}" && -n "${oldest}" ));then
 			rm "${world_dir}/${oldest}"
 		fi
 		echo -e "world backup: ${green}creating${restore}..."
@@ -249,7 +278,19 @@ restore(){
 	echo -e "${contrast}Available backups${restore}:"
 	select answer in ${tarballs};do
 		echo -e "Rolling back ${3} to the state ${green}${answer}${restore}"
-		[[ -n "${5}" ]] && rm -rf "${5}"
+		if [[ -n "${5}" ]];then
+			# Prevent glob expansion: remove the glob pattern and use find instead
+			case "${5}" in
+				*\**|*\?*|*\[*)
+					local _rm_targets
+					_rm_targets="$(eval echo "${5}" 2>/dev/null)"
+					for _rt in ${_rm_targets};do
+						[[ -e "${_rt}" || -L "${_rt}" ]] && rm -rf "${_rt}"
+					done
+					;;
+				*) rm -rf "${5}" ;;
+			esac
+		fi
 		tar -xf "${1}/${2}_${answer}.tar.bz2" -C ${4} 2>/dev/null
 		break
 	done
@@ -375,7 +416,7 @@ sort_uniq_files(){
 
 		sed -e '/^$/d' -e 's/[ \t]*$//' -i ${tmp_sort}
 		sort -u "${tmp_sort}" 2>/dev/null
-		[[-z "${NO_DIFF}"]] && diff_ask "${package}" "${tmp_sort}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_sort}"
 	done
 }
 ############################################################################
@@ -421,7 +462,7 @@ rm_comments(){
 		tmp_file="${TMPDIR_PORTCONF}/tmp_file"
 		cp "${file}" "${tmp_file}"
 		sed -e "s|^#.*||g" -e '/^$/d' -i ${tmp_file}
-		[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 	}
 	file_or_dir "package.*" "Checking comments:" "no_newline" || return 1
 }
@@ -432,7 +473,7 @@ rm_all_comments(){
 		tmp_file="${TMPDIR_PORTCONF}/tmp_file"
 		cp "${file}" "${tmp_file}"
 		sed -e "s|#.*||g" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_file}
-		[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 	}
 	file_or_dir "package.*" "Checking comments:" "no_newline_inline"  || return 1
 }
@@ -466,7 +507,7 @@ sort_uses(){
 	sed -e 's/[ \t]*$//' -e '/^$/d' -e 's|  | |g' -e "s| - | |g" -i "${striped}" 2>/dev/null
 	sort -u "${striped}" 2>/dev/null
 	rm "${tmp_file}" 2>/dev/null
-	[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${striped}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
 } 2>/dev/null
 ############################################################################
 ################ package.use ###############################################
@@ -514,7 +555,7 @@ stupid_keywords(){
 					string="$(grep "^${satom} ${lkeys}.*$" "${1}")"
 					fixed_string=""
 				fi
-				sed -e "s|^${string//\*/\\*}$|${fixed_string}|"  -e '/^$/d' -i "${2}" || echo fail 525
+				sed -e "s|^${string//\*/\\*}$|${fixed_string}|"  -e '/^$/d' -i "${2}" || { echo "fail 525"; exit 1; }
 			fi
 		done < "${1}"
 	done
@@ -528,7 +569,7 @@ sort_keys(){
 	for atom in ${PACKAGES};do
 		comment="$(grep "${atom}[[:space:]].*#" "${file}" | cut -d\# -f2-)"
 		for option in \
-		"$(grep "^${atom//\*/\\*}[[:space:]]" ${file} | sed -e "s|${atom//\*/\\*} ||" -e "s|#.*${comment}||" | tr "[:space:]" $'\n' | uniq | tr $'\n' " ")";do
+		"$(grep "^$(sed_escape "${atom//\*/\\*}")[[:space:]]" ${file} | sed -e "s|$(sed_escape "${atom//\*/\\*}") ||" -e "s|#.*$(sed_escape "${comment}")||" | tr "[:space:]" $'\n' | uniq | tr $'\n' " ")";do
 			atom_opts+="${option}"
 		done
 		keys="$(sort_passed_uses "${atom_opts}")"
@@ -553,7 +594,7 @@ sort_keys(){
 	cp "${striped}" "${tmp_file}"
 	stupid_keywords "${tmp_file}" "${striped}"
 	rm "${tmp_file}" 2>/dev/null
-	[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${striped}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${striped}"
 } #2>/dev/null
 ############################################################################
 ################ one_keyword ###############################################
@@ -564,7 +605,7 @@ sort_keywords(){
 		atoms="$(awk '{print $1}' "${file}" | sort -u)"
 		while read atom;do
 			comment="$(grep "${atom}[[:space:]].*#" "${file}" | cut -d\# -f2-)"
-			keyword="$(grep "${atom}[[:space:]]" ${file} | sed -e "s|${atom} ||" -e "s|#.*${comment}||" |\
+			keyword="$(grep "$(sed_escape "${atom}")[[:space:]]" ${file} | sed -e "s|$(sed_escape "${atom}") ||" -e "s|#.*$(sed_escape "${comment}")||" |\
 						tr "[:space:]" $'\n' | sed '/^$/d' | tail -n1)"
 			keyword="${keyword:-"~${ARCH}"}"
 			if [[ -n "${comment}" ]];then
@@ -577,7 +618,7 @@ sort_keywords(){
 		cp "${tmp_file}" "${striped}"
 		stupid_keywords "${striped}" "${tmp_file}"
 		rm "${striped}"
-		[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 	}
 	file_or_dir "package.keywords package.accept_keywords" "Sorting keywords in" "keys" || return 1
 }
@@ -658,7 +699,7 @@ force_not_installed(){
 			if ! grep -q "\.mask" <<< "${package}";then
 				not_if;
 			fi
-			[[-z "${NO_DIFF}"]] && diff_ask "${package}" "${tmp_package}"
+			[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_package}"
 		else
 			pack="${package%/*}"
 			echo -e "${underline}Empty file${restore} ${contrast}${pack}${restore}"
@@ -713,12 +754,12 @@ package_env(){
 					echo -e "Defined conf not exists: ${red}${conf}${restore}"
 					new_line=$(grep -v "^${conf}$" <<< "$(tr ' ' $'\n' <<< "${line}")" | tr $'\n' ' ')
 					new_line="$(sed 's/^[ \t]*//;s/[ \t]*$//' <<< "${new_line}")"
-					sed "s|${line}|${new_line}|" -i "${tmp_file}"
+					sed "s|$(sed_escape "${line}")|$(sed_escape "${new_line}")|" -i "${tmp_file}"
 					line="${new_line}"
 				fi
 			done
 		done < "${file}"
-		[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 	}
 	file_or_dir "package.env" "Checking defined configs in" "package_env_def" || return 1
 }
@@ -807,26 +848,31 @@ invalid_uses(){
 			echo -ne "["; printf "% ${chars}d" $((count--));echo -ne " ]" "atoms left" 2>/dev/null
 			tput rc
 			prepare(){
+				local _esc_trash
+				_esc_trash="$(sed_escape "${trash#-}")"
 				while read string;do
 					struse="${string#${category}/${pn}}"
 					struse="$(tr "[:space:]" $'\n' <<< ${struse})"
-					usefxd="$(sed -e "s|^${trash#-}$||" -e "s|^\-${trash#-}$||" -e '/^$/d' <<< "${struse}")"
+					usefxd="$(sed -e "s|^${_esc_trash}$||" -e "s|^\\-${_esc_trash}$||" -e '/^$/d' <<< "${struse}")"
 					usefxd="$(tr $'\n' " " <<< "${usefxd}")"
 					usefxd="$(sed -e 's| - | |g' -e 's/[ -]*$//' <<< ${usefxd})"
 					strfxd="${category}/${pn} ${usefxd}"
-					sed -e "s|^${category}/${pn}[[:space:]].*${trash#-}.*|$strfxd|" -i ${tmp_file} 2>/dev/null
+					sed -e "s|^${category}/${pn}[[:space:]].*${_esc_trash}.*$|${strfxd}|" -i ${tmp_file} 2>/dev/null
 				done <<< "${strings}"
 			}
 
 			prepare_similar(){
+				local _esc_use _esc_suse
+				_esc_use="$(sed_escape "${use#-}")"
+				_esc_suse="$(sed_escape "${similar_use}")"
 				while read string;do
 					struse="${string#${category}/${pn}}"
 					struse="$(tr "[:space:]" $'\n' <<< ${struse})"
-					usefxd="$(sed -e "s|^${use#-}$|${similar_use}|" -e "s|^\-${use#-}$|\-${similar_use}|" -e '/^$/d' <<< "${struse}")"
+					usefxd="$(sed -e "s|^${_esc_use}$|${_esc_suse}|" -e "s|^\\-${_esc_use}$|\\-${_esc_suse}|" -e '/^$/d' <<< "${struse}")"
 					usefxd="$(tr $'\n' " " <<< "${usefxd}")"
 					usefxd="$(sed -e 's| - | |g' -e 's/[ -]*$//' <<< ${usefxd})"
 					strfxd="${category}/${pn} ${usefxd}"
-					sed -e "s|^${category}/${pn}[[:space:]].*${use#-}.*|$strfxd|" -i ${tmp_file} 2>/dev/null
+					sed -e "s|^${category}/${pn}[[:space:]].*${_esc_use}.*$|${strfxd}|" -i ${tmp_file} 2>/dev/null
 				done <<< "${strings}"
 			}
 
@@ -839,10 +885,10 @@ invalid_uses(){
 					for agrep_opt in 1 2 3 B;do
 						for use_opt in "${use}" "^${use}" "${use}$" "^${use}$";do
 							similar_use="$(agrep -${agrep_opt} "${use_opt}" 2>/dev/null <<< "${ALL_USE}")"
-							[[ -n "${similar_use}" ]] && (( $(wc -l <<< "${similar_use}") '==' 1 )) && break
+							[[ -n "${similar_use}" ]] && (( $(wc -l <<< "${similar_use}") == 1 )) && break
 						done
-						[[ -n "${similar_use}" ]] && (( $(wc -l <<< "${similar_use}") '==' 1 )) && break
-						[[ -z "${similar_use}" ]] || (( $(wc -l <<< "${similar_use}") '>' 1 )) && similar_use=""
+						[[ -n "${similar_use}" ]] && (( $(wc -l <<< "${similar_use}") == 1 )) && break
+						[[ -z "${similar_use}" ]] || (( $(wc -l <<< "${similar_use}") > 1 )) && similar_use=""
 					done
 					if [[ -z "${similar_use}" ]];then
 						grep -q " ${use}\>" <<< "${incorrect_use}" || incorrect_use="${incorrect_use} ${use}"
@@ -913,7 +959,7 @@ invalid_uses(){
 		check_uses;
 		tput el;
 		tput cnorm;
-		[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 		[[ ! -s "${file}" ]] && remove_ask "${file}"
 	elif [[ -d "${PORT_ETC}/package.use" ]];then
 		for f in $(find ${PORT_ETC}/package.use/ -type f \! -name '*~' \! -name '*.bak');do
@@ -933,7 +979,7 @@ invalid_uses(){
 				chars="$(wc -m <<< "${count}")"
 				check_uses;
 				tput cnorm
-				[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
+				[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 				[[ ! -s "${file}" ]] && remove_ask "${file}"
 			else
 				echo -e "${underline}Removing empty file${restore} ${contrast}${f}${restore}"
@@ -978,12 +1024,12 @@ invalid_uses_make(){
 
 	if [[ -n "${invalid_uses}" ]];then
 		for iuse in ${invalid_uses};do
-			line="$(grep "\<${iuse}\>" ${tmp_file})"
-			fixed_line="$(sed "s|[- \t]${iuse}||" <<< "${line}")"
+			line="$(grep -F -- "$(sed_escape "$iuse")" ${tmp_file} 2>/dev/null | head -n1)"
+			fixed_line="$(sed "s|[- \t]$(sed_escape "${iuse}")||" <<< "${line}")"
 			sed -e "s|${line%\\}|${fixed_line%\\}|" -i "${tmp_file}"
 		done
 	fi
-	[[-z "${NO_DIFF}"]] && diff_ask "${makefile}" "${tmp_file}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${makefile}" "${tmp_file}"
 	set +f
 }
 ############################################################################
@@ -1003,7 +1049,7 @@ not_found(){
 				line="${line//'*'/\*}"
 				[[ -n "${line}" ]] && sed -e "s|$line||" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_package} 2>/dev/null
 			done <<< "${incorrect}"
-			[[-z "${NO_DIFF}"]] && diff_ask "${package}" "${tmp_package}"
+			[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_package}"
 		elif [[ -n "${incorrect}" && -d "${package}" ]];then
 			echo -e "${underline}Removing incorrect from${restore} ${contrast}${package}${restore}:"
 			IFS=$'\n'
@@ -1013,7 +1059,7 @@ not_found(){
 					cp "${file}" "${tmp_file}"
 					echo -e "${red}Incorrect:${restore} ${line}"
 					[[ -n "${line}" ]] && sed -e "s|${line//'*'/\*}||" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_file}
-					[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
+					[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 				done
 			done
 			unset IFS
@@ -1039,15 +1085,15 @@ not_found(){
 		if [[ -n "${line}" && -f "${file}" ]];then
 			tmp_file="${TMPDIR_PORTCONF}/tmp_file"
 			cp "${file}" "${tmp_file}"
-			[[ -n "${line}" ]] && sed -e "s|$(echo "$line")$||" -e 's|[ \t]| |' -e '/^[ \t]$/d' -e '/^$/d' -i "${tmp_file}"
-			[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
+			[[ -n "${line}" ]] && sed -e "s|$(sed_escape "$line")$||" -e 's|[ \t]| |' -e '/^[ \t]$/d' -e '/^$/d' -i "${tmp_file}"
+			[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 		elif [[ -n "${line}" && -d "${file}" ]];then
 			for package in $(grep -RH "${line//'*'/\*}" "${file}"/ | awk -F \: '{print $1}');do
 					tmp_package="${TMPDIR_PORTCONF}/tmp_package"
 					cp "${package}" "${tmp_package}"
 					echo -e "${red}Incorrect:${restore} ${line}"
 					[[ -n "${line}" ]] && sed -e "s|${line//'*'/\*}||" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_package}
-					[[-z "${NO_DIFF}"]] && diff_ask "${package}" "${tmp_package}"
+					[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_package}"
 					eend $? 2>/dev/null
 			done
 		fi
@@ -1066,11 +1112,11 @@ not_found(){
 		tmp_file="${TMPDIR_PORTCONF}/tmp_file"
 		cp "${file}" "${tmp_file}"
 		set -f
-		tlines="$(grep "^${file} " <<< "${invalid}" | sed "s|${file} ||g")"
+		tlines="$(grep "^$(sed_escape "${file}") " <<< "${invalid}" | sed "s|$(sed_escape "${file}") ||g")"
 		while read line;do
 			sed -e "s|^$(printf ${line}).*$||;s|^${line//\*/\\*}.*$||" -e 's|[ \t]| |;/^[ \t]$/d;/^$/d' -i "${tmp_file}"
 		done <<< "${tlines}"
-		[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
+		[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 		set +f
 	}
 	if [[ -n "${invalid}" ]];then
@@ -1093,14 +1139,14 @@ use_makeconf(){
 		if [[ -n ${flag} ]];then
 			if grep -q "^${flag}$" <<< "${USE}" && grep -q "^${flag}$" <<< "${PROFILE}";then
 				echo -e "Twice defined: ${red}${use}${restore}"
-				sed -e "s|[^[:punct:]]\<${flag}\>||g" -i ${tmp_file}
+				sed -e "s|[^[:punct:]]\\<$(sed_escape "${flag}")\\>||g" -i ${tmp_file}
 			elif grep -q "^-${flag}$" <<< "${USE}" && grep -q "^-${flag}$" <<< "${PROFILE}";then
 				echo -e "Twice defined: ${red}-${use}${restore}"
-				sed -e "s|[^[:punct:]]\-\<${flag}\>||g" -i ${tmp_file}
+				sed -e "s|[^[:punct:]]\\-\\<$(sed_escape "${flag}")\\>||g" -i ${tmp_file}
 			fi
 		fi
 	done <<< "${PROFILE}"
-	[[-z "${NO_DIFF}"]] && diff_ask "${makefile}" "${tmp_file}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${makefile}" "${tmp_file}"
 }
 ############################################################################
 ################ empty files ###############################################
@@ -1298,11 +1344,11 @@ mask_trash(){
 		if [[ -f "${target}" ]];then
 			tmp_file="${TMPDIR_PORTCONF}/tmp_file"
 			cp "${target}" "${tmp_file}"
-			incorrect="$(grep ${target} <<< "${TRASH}" | sed -e "s|${target} ||g")"
+			incorrect="$(grep -F "${target}" <<< "${TRASH}" | sed -e "s|$(sed_escape "${target}") ||g")"
 			for trash_atom in ${incorrect};do
-				sed -e "s|^${trash_atom}.*||" -e '/^$/d' -e 's/[ \t]*$//' -i "${tmp_file}"
+				sed -e "s|^$(sed_escape "${trash_atom}").*$||" -e '/^$/d' -e 's/[ \t]*$//' -i "${tmp_file}"
 			done
-			[[-z "${NO_DIFF}"]] && diff_ask "${target}" "${tmp_file}"
+			[[ -z "${NO_DIFF}" ]] && diff_ask "${target}" "${tmp_file}"
 		fi
 	done
 	unset TRASH OVERLAYS_LIST VERSIONONLY FORMAT MASKED UNMASKED versions oldest versions_diff versions_btwn
@@ -1313,23 +1359,23 @@ remove_trash(){
 	tmp_file="${TMPDIR_PORTCONF}/tmp_file"
 	cp "${file}" "${tmp_file}"
 	for atom in $(eix -Tc#);do
-		lines="$(grep "${atom}" "${file}")"
+		lines="$(grep -F "${atom}" "${file}" 2>/dev/null)"
 		while read line;do
 			entry="$(qatom "$(tr -d '<>=~#' <<< "${line}")" | awk '{print $1,$2}' | tr ' ' '/')"
 			if [[ "${atom}" == "${entry}" ]];then
 				if ! eix -qe --installed-masked "${entry}";then
-					if $(eix -Iqe "${atom}");then
+					if eix -Iqe "${atom}" &>/dev/null;then
 						echo -e "stupid entry:              ${green}${line}${restore}"
 					else
 						echo -e "stupid entry (${red}!${restore}installed): ${green}${line}${restore}"
 					fi
-					sed -e "s|${line}||" -e '/^$/d' -i "${tmp_file}"
+					sed -e "s|$(sed_escape "${line}")||" -e '/^$/d' -i "${tmp_file}"
 					break
 				fi
 			fi
 		done <<< "${lines}"
 	done
-	[[-z "${NO_DIFF}"]] && diff_ask "${file}" "${tmp_file}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${file}" "${tmp_file}"
 }
 ############################################################################
 ################ stupid unmask #############################################
@@ -1353,7 +1399,7 @@ sort_uniq_mask_use(){
 
 			sort_passed_uses "${masked_uses}" | tr "[:space:]" $'\n' > ${tmp_sort}
 
-			[[-z "${NO_DIFF}"]] && diff_ask "${package}" "${tmp_sort}"
+			[[ -z "${NO_DIFF}" ]] && diff_ask "${package}" "${tmp_sort}"
 		done
 	fi
 }
@@ -1411,7 +1457,7 @@ etc_profile_use_mask() {
 			fi
 		fi
 	done < "${orig_file}"
-	[[-z "${NO_DIFF}"]] && diff_ask "${orig_file}" "${tmp_file}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${orig_file}" "${tmp_file}"
 }
 
 check_use_masked() {
@@ -1421,13 +1467,11 @@ check_use_masked() {
 }
 ############################################################################
 ################ regen_world ###############################################
-regen_world(){
+	regen_world(){
 	tmp_world="${TMPDIR_PORTCONF}/tmp_world"
 	ex_world="${TMPDIR_PORTCONF}/ex_world"
 	emerge_log="${TMPDIR_PORTCONF}/emerge_log"
 	mv "${WORLD}" "${ex_world}"
-	installed="$(qlist -CI | sort -u)"
-	echo "${installed}" > "${WORLD}"
 	echo -e "Calculating dependencies"
 
 	pre_pre="$(emerge -eopd --columns --with-bdeps=y world 2>"${emerge_log}" || exit 1)"
@@ -1441,6 +1485,9 @@ regen_world(){
 	else
 		rm "${emerge_log}"
 	fi
+
+	installed="$(qlist -CI | sort -u)"
+	echo "${installed}" > "${WORLD}"
 
 	pretend="$(grep -v "blocks" <<< "${pre_pre}" | awk '/^\[/ {print $4}')" && eend 0 2>/dev/null
 	pretend+="$(qlist -CI $(emerge -epO system | awk '/\[/ {print $4}'))"$'\n'
@@ -1511,7 +1558,7 @@ regen_world(){
 	done
 	cp "${WORLD}" "${tmp_world}"
 	cp "${ex_world}" "${WORLD}"
-	[[-z "${NO_DIFF}"]] && diff_ask "${WORLD}" "${tmp_world}"
+	[[ -z "${NO_DIFF}" ]] && diff_ask "${WORLD}" "${tmp_world}"
 	rm "${ex_world}"
 	echo -e "\n${green}Result${restore}:"
 	cat "${WORLD}"
@@ -1520,8 +1567,14 @@ regen_world(){
 ################ unused repo and dep-cache #################################
 overlays(){
 	########## repo over layman
-	layman_path="$(awk '/storage[[:space:]].*:/ {print $3}' /etc/layman/layman.cfg)"
-	source "${layman_path}/make.conf" 2>/dev/null
+	if [[ -f /etc/layman/layman.cfg ]];then
+		layman_path="$(awk '/storage[[:space:]].*:/ {print $3}' /etc/layman/layman.cfg)"
+		if [[ -n "${layman_path}" && -f "${layman_path}/make.conf" ]];then
+			source "${layman_path}/make.conf" 2>/dev/null
+		fi
+	else
+		layman_path=""
+	fi
 	layman_pkgdir="$(tr '[[:space:]]' $'\n' <<< "${PORTDIR_OVERLAY}" | sed '/^$/d')"
 	for repo_dir in ${layman_pkgdir};do
 		[[ -f "${repo_dir}/profiles/repo_name" ]] && repo_name="$(cat "${repo_dir}/profiles/repo_name")"
@@ -1674,9 +1727,9 @@ overlays(){
 				elif [[ -d "${repo_path}" && "$(ls -A ${dep_path})" && -f "${dep_file}" ]];then
 					file_stamp="$(timestamp "${dep_file}")"
 					path_stamp="$(timestamp ${dep_path}/*)"
-					if [[ -n "${file_stamp}" && -n "${path_stamp}" ]] && (( "${file_stamp}" > "${path_stamp}" ));then
+					if [[ -n "${file_stamp}" && -n "${path_stamp}" ]] && (( file_stamp > path_stamp ));then
 						TRASH+="${dep_path}/* "
-					elif [[ -n "${file_stamp}" && -n "${path_stamp}" ]] && (( "${file_stamp}" < "${path_stamp}" ));then
+					elif [[ -n "${file_stamp}" && -n "${path_stamp}" ]] && (( file_stamp < path_stamp ));then
 						TRASH+="${dep_file} "
 					fi
 				fi
@@ -1690,7 +1743,7 @@ overlays(){
 	}
 	ask
 	for repo in ${UNUSED};do
-		layman -d "${repo}"
+		[[ -n "$(command -v layman 2>/dev/null)" ]] && layman -d "${repo}"
 	done
 	echo -e "\n${TRASH_REPO}"
 	echo "dep-cache:"
@@ -1698,7 +1751,8 @@ overlays(){
 		trash="$(fix_deps)"
 		if [[ -n "${trash}" ]];then
 			echo -e "$(tr ' ' $'\n' <<< "${trash% }" | sed "s|^|removing:\\${green}|;s|$|\\${restore}|")"
-			rm -rf "${trash}" 2>/dev/null || echo failed && exit 1
+			[[ -z "${trash// /}" ]] && continue
+			rm -rf ${trash} 2>/dev/null || { echo "failed"; exit 1; }
 		else
 			break
 		fi
