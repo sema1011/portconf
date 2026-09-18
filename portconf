@@ -342,16 +342,6 @@ restore(){
 	tar -xf "${1}/${2}_${answer}.tar.bz2" -C "${4}" 2>/dev/null
 }
 ############################################################################
-################ etc_restore ###############################################
-etc_restore(){
-	restore "${BRDIR}" "portage" "${PORT_ETC}" "/etc/" "${PORT_ETC}/*"
-}
-############################################################################
-################ world_restore #############################################
-world_restore(){
-	restore "${BRDIR}/world" "world" "${WORLD}" "${WORLD%world}"
-}
-############################################################################
 ################ diff_ask ##################################################
 diff_ask(){
 	my_diff="$(diff "${1}" "${2}" | grep --color=never "[[:digit:]][a-z][[:digit:]]")"
@@ -2003,7 +1993,8 @@ fi
 for OPT in ${opts};do
 	case "${OPT}" in
 	--backup | -b ) backup;;
-	--restore | -r ) etc_restore;;
+	--restore | -r )
+		restore "${BRDIR}" "portage" "${PORT_ETC}" "/etc/" "${PORT_ETC}/*";;
 	--sort | -s )
 		[[ -z "${NO_BACKUP}" ]] && backup;
 		file_or_dir "package.use" "Sorting use flags in" "set -f" "sort_uses" "set +f";
@@ -2100,7 +2091,8 @@ for OPT in ${opts};do
 	--profiles-use | -pu ) all_use_all_profiles select;;
 	--current-profile-use | -cpu ) current_profile;;
 	--world-backup | -wb ) world_backup;;
-	--world-restore | -wr ) world_restore;;
+	--world-restore | -wr )
+		restore "${BRDIR}/world" "world" "${WORLD}" "${WORLD%world}";;
 	--world-regen | -wg )
 		world_backup;
 		regen_world;;
