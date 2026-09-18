@@ -848,6 +848,37 @@ env_not_installed(){
 	done
 }
 ############################################################################
+################ apply_use_replacement #####################################
+# Apply USE flag replacement/removal in tmp_file for matching strings.
+# $1 = mode: "remove" or "replace"
+# For "remove": USE_TRASH holds the flag to remove (with optional -)
+# For "replace": USE_FROM and USE_TO hold the flags
+apply_use_replacement(){
+	local mode="${1:-remove}"
+	local _esc_src _esc_dst
+	if [[ "${mode}" == "replace" ]];then
+		_esc_src="$(sed_escape "${USE_FROM#-}")"
+		_esc_dst="$(sed_escape "${USE_TO}")"
+	else
+		_esc_src="$(sed_escape "${USE_TRASH#-}")"
+		_esc_dst=""
+	fi
+	while IFS= read -r string;do
+		local struse usefxd strfxd
+		struse="${string#${category}/${pn}}"
+		struse="$(tr "[:space:]" $'\n' <<< "${struse}")"
+		if [[ "${mode}" == "replace" ]];then
+			usefxd="$(sed -e "s|^${_esc_src}$|${_esc_dst}|" -e "s|^\\-${_esc_src}$|\\-${_esc_dst}|" -e '/^$/d' <<< "${struse}")"
+		else
+			usefxd="$(sed -e "s|^${_esc_src}$||" -e "s|^\\-${_esc_src}$||" -e '/^$/d' <<< "${struse}")"
+		fi
+		usefxd="$(tr $'\n' " " <<< "${usefxd}")"
+		usefxd="$(sed -e 's| - | |g' -e 's/[ -]*$//' <<< "${usefxd}")"
+		strfxd="${category}/${pn} ${usefxd}"
+		sed -e "s|^${category}/${pn}[[:space:]].*${_esc_src}.*$|${strfxd}|" -i "${tmp_file}" 2>/dev/null
+	done <<< "${strings}"
+}
+############################################################################
 ################ incorrect uses ############################################
 invalid_uses(){
 	eix_check
@@ -877,34 +908,6 @@ invalid_uses(){
 			tput el1
 			echo -ne "["; printf "% ${chars}d" $((count--));echo -ne " ]" "atoms left" 2>/dev/null
 			tput rc
-			prepare(){
-				local _esc_trash
-				_esc_trash="$(sed_escape "${trash#-}")"
-				while IFS= read -r string;do
-					struse="${string#${category}/${pn}}"
-					struse="$(tr "[:space:]" $'\n' <<< "${struse}")"
-					usefxd="$(sed -e "s|^${_esc_trash}$||" -e "s|^\\-${_esc_trash}$||" -e '/^$/d' <<< "${struse}")"
-					usefxd="$(tr $'\n' " " <<< "${usefxd}")"
-					usefxd="$(sed -e 's| - | |g' -e 's/[ -]*$//' <<< "${usefxd}")"
-					strfxd="${category}/${pn} ${usefxd}"
-					sed -e "s|^${category}/${pn}[[:space:]].*${_esc_trash}.*$|${strfxd}|" -i "${tmp_file}" 2>/dev/null
-				done <<< "${strings}"
-			}
-
-			prepare_similar(){
-				local _esc_use _esc_suse
-				_esc_use="$(sed_escape "${use#-}")"
-				_esc_suse="$(sed_escape "${similar_use}")"
-				while IFS= read -r string;do
-					struse="${string#${category}/${pn}}"
-					struse="$(tr "[:space:]" $'\n' <<< "${struse}")"
-					usefxd="$(sed -e "s|^${_esc_use}$|${_esc_suse}|" -e "s|^\\-${_esc_use}$|\\-${_esc_suse}|" -e '/^$/d' <<< "${struse}")"
-					usefxd="$(tr $'\n' " " <<< "${usefxd}")"
-					usefxd="$(sed -e 's| - | |g' -e 's/[ -]*$//' <<< "${usefxd}")"
-					strfxd="${category}/${pn} ${usefxd}"
-					sed -e "s|^${category}/${pn}[[:space:]].*${_esc_use}.*$|${strfxd}|" -i "${tmp_file}" 2>/dev/null
-				done <<< "${strings}"
-			}
 
 			ALL_USE=" $(eix -e "${category}/${pn}")" || continue
 			ALL_USE="$(sed -e 's| +| |g;s| -| |g;s|(+)||g;s|(-)||g' <<< "${ALL_USE}" | tr "[:space:]" $'\n' | sort -u | sed -e '/^$/d')"
@@ -928,7 +931,7 @@ invalid_uses(){
 						_grep_pat="^${category}/${pn}[[:space:]].*\<${use}\>"
 						strings="$(grep "$_grep_pat" "${tmp_file}")"
 						echo -e "${category}/${pn}: ${red}${use} ---> ${green}${similar_use}${restore}"
-						prepare_similar;
+						USE_FROM="${use}"; USE_TO="${similar_use}"; apply_use_replacement "replace"
 						incorrect_use="${incorrect_use// ${similar_use}/}"
 					fi
 				else
@@ -951,7 +954,7 @@ invalid_uses(){
 					local _grep_pat
 					_grep_pat="^${category}/${pn}[[:space:]].*\<${trash}\>"
 					strings="$(grep "$_grep_pat" "${tmp_file}")"
-					prepare;
+					USE_TRASH="${trash}"; apply_use_replacement "remove"
 				done <<< "${incorrect_use}"
 			fi
 			if [[ -n "${global_use}" ]];then
@@ -960,7 +963,7 @@ invalid_uses(){
 					local _grep_pat
 					_grep_pat="^${category}/${pn}[[:space:]].*\<${trash#-}\>"
 					strings="$(grep "$_grep_pat" "${tmp_file}")"
-					prepare;
+					USE_TRASH="${trash}"; apply_use_replacement "remove"
 				done <<< "${global_use}"
 			fi
 			unset ALL_USE LOCAL USES incorrect_use global_use use
