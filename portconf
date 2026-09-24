@@ -1029,7 +1029,7 @@ not_found(){
 			echo -e "${underline}Removing incorrect from${restore} ${contrast}${package}${restore}:"
 			while read line;do
 				echo -e "${red}Incorrect:${restore} ${line}"
-				line="${line//'*'/\*}"
+				line="${line//'*'/\\*}"
 				[[ -n "${line}" ]] && sed -e "s|$line||" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_package} 2>/dev/null
 				eend $? 2>/dev/null
 			done <<< "${incorrect}"
@@ -1038,11 +1038,11 @@ not_found(){
 			echo -e "${underline}Removing incorrect from${restore} ${contrast}${package}${restore}:"
 			IFS=$'\n'
 			for line in ${incorrect};do
-				for file in `grep -RH "${line//'*'/\*}" "${package}"/ | awk -F \: '{print $1}'`;do
+				for file in `grep -RH "${line//'*'/\\*}" "${package}"/ | awk -F \: '{print $1}'`;do
 					tmp_file="$(mktemp)"
 					cp "${file}" "${tmp_file}"
 					echo -e "${red}Incorrect:${restore} ${line}"
-					[[ -n "${line}" ]] && sed -e "s|${line//'*'/\*}||" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_file}
+					[[ -n "${line}" ]] && sed -e "s|${line//'*'/\\*}||" -e 's/[ \t]*$//' -e '/^$/d' -i ${tmp_file}
 					diff_ask "${file}" "${tmp_file}"
 					eend $? 2>/dev/null
 				done
