@@ -498,7 +498,7 @@ stupid_keywords(){
 			#### wildcards
 			pcategory="${satom%%/*}"
 			pcategory="$(tr -d "<>=~" <<< "${pcategory}")"
-			parent_keys="$(grep -e "${pcategory}/\*" -e "\*/\*" "${1}" | sed 's|^.* ||' | sort -u)"
+			parent_keys="$(grep -e "${pcategory}/\*" -e "\*/\*" "${2}" | sed 's|^.* ||' | sort -u)"
 			#### /wildcards
 			if [[ "${satom}" != "${pcategory}/*" && "${satom}" != "*/*" ]];then
 				for key in ${lkeys};do
@@ -515,10 +515,10 @@ stupid_keywords(){
 			if [[ "${lkeys}" != "${out_keys}" ]];then
 				if [[ -n "${out_keys% }" ]];then
 					if [[ -n "${comment}" ]];then
-						string="$(grep "^${satom} ${lkeys} .*#${comment}$" "${1}")"
+						string="$(grep "^${satom} ${lkeys} .*#${comment}$" "${2}")"
 						fixed_string="${satom} ${out_keys% } #${comment}"
 					else
-						string="$(grep "^${satom} ${lkeys}$" "${1}")"
+						string="$(grep "^${satom} ${lkeys}$" "${2}")"
 						fixed_string="${satom} ${out_keys}"
 					fi
 				else
@@ -527,9 +527,10 @@ stupid_keywords(){
 				fi
 				sed -e "s|^${string//\*/\\*}$|${fixed_string}|"  -e '/^$/d' -i "${2}" || echo fail 525
 			fi
-		done < "${1}"
+		done < <(cat "${2}")
 	done
 }
+
 ############################################################################
 ################ sort_keys #################################################
 sort_keys(){
