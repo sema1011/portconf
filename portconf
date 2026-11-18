@@ -117,7 +117,8 @@ PORTDIR="${PORTDIR:-/usr/portage}"
 ############################################################################
 ################ timestamp #################################################
 timestamp(){
-	stat -c %Y ${*} 2>/dev/null | sort | tail -n1
+	[[ -z "${*}" ]] && return
+	stat -c %Y ${*} 2>/dev/null | sort -n | tail -n1
 }
 ############################################################################
 ################ repo fix ##################################################
@@ -163,7 +164,13 @@ eix_check(){
 		chown portage:portage "${eix_cache}" 2>/dev/null
 		export EIX_CACHEFILE="${eix_cache}"
 		export OVERLAY_CACHE_METHOD="parse|ebuild*"
-		eix-update
+		if ! eix-update; then
+			echo -e "${red}eix-update failed!${restore}" >&2
+			rm_repo_fix
+			rm -f "${eix_cache}"
+			unset eix_cache EIX_CACHEFILE
+			exit 1
+		fi
 	else
 		echo -e "${green}app-portage/eix${restore} ${red}not installed!${restore}"
 		eend 1 2>/dev/null
@@ -213,6 +220,7 @@ _backup_generic(){
 	[[ -n "${tarballs}" ]] && oldest="$(head -n1 <<< "${tarballs}")"
 	update="$(timestamp ${src})"
 	stored_update="$(timestamp ${dir}/* 2>/dev/null)"
+	update="${update:-0}"
 	stored_update="${stored_update:-0}"
 	if (( "${update}" > "${stored_update}" ));then
 		if (( "${count}" >= "${COUNT}" )) && [[ -n "${oldest}" ]];then
@@ -229,11 +237,18 @@ _backup_generic(){
 }
 
 backup(){
+	local src_etc
+	if compgen -G "${PORT_ETC}/*" >/dev/null \
+	   || compgen -G "${PORT_ETC}/*/*" >/dev/null; then
+		src_etc="${PORT_ETC}/{*,*/*,*/*/*,*/*/*/*}"
+	else
+		src_etc="${PORT_ETC}"
+	fi
 	if [[ -f "/etc/make.conf" ]];then
-		_backup_generic "${BRDIR}" "portage" "${PORT_ETC}/{*,*/*,*/*/*,*/*/*/*} /etc/make.conf" \
+		_backup_generic "${BRDIR}" "portage" "${src_etc} /etc/make.conf" \
 			"-C /etc/ portage make.conf" "/etc/portage backup"
 	else
-		_backup_generic "${BRDIR}" "portage" "${PORT_ETC}/{*,*/*,*/*/*,*/*/*/*}" \
+		_backup_generic "${BRDIR}" "portage" "${src_etc}" \
 			"-C /etc/ portage" "/etc/portage backup"
 	fi
 }
@@ -894,7 +909,11 @@ invalid_uses(){
 				done <<< "${strings}"
 			}
 
-			ALL_USE=" $(eix -e "${category}/${pn}")" || continue
+			if ! ALL_USE="$(eix -e "${category}/${pn}" 2>/dev/null)"; then
+				echo -e "${red}eix failed for ${category}/${pn}, skipping${restore}" >&2
+				continue
+			fi
+			ALL_USE=" ${ALL_USE}"
 			ALL_USE="$(sed -e 's| +| |g;s| -| |g;s|(+)||g;s|(-)||g' <<< "${ALL_USE}" | tr "[:space:]" $'\n' | sort -u | sed -e '/^$/d')"
 			cat_pn_re="$(escape_regex "${category}/${pn}")"
 			LOCAL="$(grep "\<${cat_pn_re}\> " "${file}" | cut -d" " -f2- | sed -e "s|#.*||g" | tr "[:space:]" $'\n' | sort -u)"
@@ -1911,8 +1930,12 @@ for OPT in ${opts};do
 		sort_use_file;;
 	--use-invalid | -ui )
 		backup;
-		invalid_uses;
-		invalid_uses_make;
+		if [[ -n "${eix_cache}" && -s "${eix_cache}" ]]; then
+			invalid_uses;
+			invalid_uses_make;
+		else
+			echo -e "${red}eix cache is empty, skipping invalid_uses${restore}" >&2
+		fi
 		[[ -n "${eix_cache}" ]] && rm "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
 	--use-make | -um )
 		backup;
@@ -1925,8 +1948,12 @@ for OPT in ${opts};do
 		backup;
 		sort_use_file;
 		sort_uniq_mask_use;
-		invalid_uses;
-		invalid_uses_make;
+		if [[ -n "${eix_cache}" && -s "${eix_cache}" ]]; then
+			invalid_uses;
+			invalid_uses_make;
+		else
+			echo -e "${red}eix cache is empty, skipping invalid_uses${restore}" >&2
+		fi
 		use_makeconf;
 		check_use_masked;
 		[[ -n "${eix_cache}" ]] && rm "${eix_cache}" && unset eix_cache EIX_CACHEFILE;;
@@ -1976,8 +2003,12 @@ for OPT in ${opts};do
 		env_not_installed;
 		sort_use_file;
 		sort_uniq_mask_use;
-		invalid_uses;
-		invalid_uses_make;
+		if [[ -n "${eix_cache}" && -s "${eix_cache}" ]]; then
+			invalid_uses;
+			invalid_uses_make;
+		else
+			echo -e "${red}eix cache is empty, skipping invalid_uses${restore}" >&2
+		fi
 		use_makeconf;
 		check_use_masked;
 		uniq_keywords;
